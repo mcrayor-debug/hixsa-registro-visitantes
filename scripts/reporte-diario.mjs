@@ -68,7 +68,8 @@ async function supabase(ruta, opciones = {}) {
     ...opciones,
     headers: {
       apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      // Las llaves legacy (JWT, empiezan con eyJ) también van en Authorization; las nuevas sb_secret_ solo en apikey.
+      ...(env.SUPABASE_SERVICE_ROLE_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } : {}),
       'Content-Type': 'application/json',
       ...(opciones.headers ?? {}),
     },
