@@ -361,3 +361,79 @@ input:focus-visible, textarea:focus-visible {
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .success-icon path { stroke-dashoffset: 0; }
 }
+
+/* =====================================================================
+   v2: horario, pase QR y enlace al panel
+   ===================================================================== */
+.fieldset-hint { margin: -0.625rem 0 1rem; }
+.field-error-row { margin: -0.75rem 0 1rem; }
+
+input[type="date"],
+input[type="time"],
+input[type="password"],
+select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.625rem 0.875rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--hx-ink);
+  background: var(--hx-white);
+  border: 1.5px solid var(--hx-line);
+  border-radius: var(--radius-field);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="date"]:focus-visible,
+input[type="time"]:focus-visible,
+input[type="password"]:focus-visible,
+select:focus-visible { outline: none; border-color: var(--hx-cyan); box-shadow: var(--ring); }
+
+.checkin-exit { margin: 0.25rem 0 0; font-size: 0.9375rem; color: rgba(255, 255, 255, 0.75); }
+
+.staff-link {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-underline-offset: 3px;
+}
+.staff-link:hover { color: var(--hx-white); }
+.staff-link:focus-visible { outline: 2px solid var(--hx-cyan); outline-offset: 3px; border-radius: 2px; }
+
+/* Pase con QR */
+.pass {
+  margin: 1.5rem auto 1rem;
+  padding: 1rem;
+  width: max-content;
+  max-width: 100%;
+  border: 1.5px dashed var(--hx-line);
+  border-radius: var(--radius-card);
+}
+.pass img { display: block; width: 220px; height: 220px; animation: aparecer 0.35s ease-out; }
+.pass-folio {
+  margin-top: 0.5rem;
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.04em;
+  color: var(--hx-navy);
+}
+.pass-data {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  max-width: 420px;
+  margin: 0 auto 1rem;
+  text-align: left;
+}
+.pass-data div { padding: 0.75rem; background: var(--hx-surface); border-radius: var(--radius-field); }
+.pass-data dt { font-size: 0.8125rem; color: var(--hx-muted); }
+.pass-data dd { margin: 0.125rem 0 0; font-weight: 600; color: var(--hx-ink); }
+.pass-mail { margin: 0 auto 1.25rem !important; }
+.success .btn { max-width: 420px; text-decoration: none; }
+.success .btn-secondary { margin-top: 0.75rem; }
+
+@keyframes aparecer { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 420px) {
+  .pass-data { grid-template-columns: 1fr; }
+}
