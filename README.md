@@ -1,318 +1,278 @@
-# HIXSA · Registro de visitantes
+# HIXSA: Registro de visitantes
 
-Formulario web para que los visitantes de las oficinas de HIXSA se registren en menos de un minuto desde su celular o desde una tableta en recepción.
+Sistema para que los visitantes de HIXSA registren su visita en línea, reciban un **pase con código QR** por correo y lo muestren en recepción. El personal consulta las visitas, emite reportes y administra usuarios desde un **panel con inicio de sesión**, y cada mañana Dirección recibe un **reporte automático** analizado con la API de Claude.
+
+> Documentación de los entregables del curso: [`docs/ENTREGABLES.md`](docs/ENTREGABLES.md)
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | HTML, CSS y JavaScript (vanilla, sin framework) |
-| Base de datos | Supabase (PostgreSQL + RLS) |
-| Control de versiones | Git + GitHub |
-| Despliegue | Cloudflare Pages |
+| Frontend | HTML, CSS y JavaScript (vanilla) en Cloudflare Pages |
+| Base de datos y autenticación | Supabase (PostgreSQL + RLS + Auth) |
+| Backend | Supabase Edge Functions (Deno / TypeScript) |
+| Correo | Resend |
+| IA | API de Claude (reporte diario) |
+| Automatización | GitHub Actions |
+| Integración con Claude Code | MCP de Supabase + skill `reporte-visitas` |
+
+## Funciones principales
+
+- **Registro público** (`index.html`): datos del visitante, correo obligatorio, **fecha y hora de entrada y salida**, aceptación del aviso de privacidad.
+- **Pase QR por correo**: se genera con el folio y una huella de los datos y el horario registrados. También se muestra en pantalla para descargarlo.
+- **Panel interno** (`admin.html`), requiere inicio de sesión:
+  - **Consultas**: filtros por periodo, empresa, motivo y texto; estado de cada visita; descarga CSV; **envío del reporte por correo**.
+  - **Configuración** (solo administrador): alta de usuarios de consulta, roles, activación, contraseñas temporales, correos de recepción y destinatarios.
+  - **Validación de pase**: al escanear el QR, el personal ve si el pase es válido y si está dentro de horario.
+- **Reporte diario automático** (lunes a viernes, 07:00): indicadores del día anterior, resumen con IA y agenda del día.
 
 ## Estructura del proyecto
 
-```
+```text
 hixsa-registro-visitantes/
-├── public/                 ← lo que se publica en internet
-│   ├── index.html          ← estructura del formulario
-│   ├── styles.css          ← diseño (paleta HIXSA en :root)
-│   ├── app.js              ← validación y envío a Supabase
-│   ├── _headers            ← cabeceras de seguridad para Cloudflare
-│   └── config.js           ← SE GENERA SOLO (no se sube a GitHub)
-├── scripts/
-│   └── build-config.js     ← crea config.js desde las variables de entorno
+├── public/                         ← sitio publicado en Cloudflare Pages
+│   ├── index.html · app.js         ← formulario público
+│   ├── admin.html · admin.js       ← panel interno
+│   ├── styles.css · admin.css      ← diseño (paleta HIXSA en :root)
+│   ├── _headers                    ← cabeceras de seguridad
+│   └── config.js                   ← se genera con npm run build (no se versiona)
 ├── supabase/
-│   └── schema.sql          ← tabla + validaciones + políticas RLS
-├── .env.example            ← plantilla de variables
-├── .gitignore
-├── CLAUDE.md               ← contexto del proyecto para Claude Code
-├── package.json
-└── README.md
+│   ├── schema.sql                  ← tablas, validaciones y RLS
+│   ├── crear-admin.sql             ← primer administrador
+│   ├── config.toml                 ← configuración de Edge Functions
+│   └── functions/
+│       ├── registrar-visita/       ← guarda, genera QR y envía el pase
+│       ├── admin-usuarios/         ← alta y gestión de usuarios
+│       ├── enviar-reporte/         ← reporte CSV por correo
+│       └── _shared/                ← utilidades comunes
+├── scripts/
+│   ├── build-config.js             ← genera public/config.js
+│   └── reporte-diario.mjs          ← automatización con API de Claude
+├── .github/workflows/
+│   ├── ci.yml                      ← verificación en cada push
+│   └── reporte-diario.yml          ← reporte automático 07:00
+├── .claude/skills/reporte-visitas/ ← skill de Claude Code
+├── .mcp.json                       ← MCP de Supabase (solo lectura)
+├── docs/ENTREGABLES.md             ← documentación del curso
+├── CLAUDE.md                       ← contexto para Claude Code
+└── CHANGELOG.md
 ```
 
-## Campos del formulario
-
-| Campo | Columna | Obligatorio |
-|---|---|---|
-| Nombre completo | `nombre_completo` | Sí |
-| Empresa | `empresa` | Sí |
-| Teléfono | `telefono` | Sí |
-| Correo electrónico | `correo` | Sí |
-| ¿A quién visitas? | `persona_visita` | Sí |
-| Motivo de la visita | `motivo` | Sí |
-| Comentarios | `comentarios` | No |
-| Acepto el aviso de privacidad | `acepta_aviso` | Sí |
-| Hora de llegada | `created_at` | Automática (servidor) |
-
-## Paleta y tipografía
-
-| Rol | Color |
-|---|---|
-| Azul corporativo (principal) | `#12365F` |
-| Azul oscuro (hover) | `#0C2747` |
-| Azul brillante (acento) | `#1FA6DB` |
-| Acento suave (fondos) | `#E6F4FA` |
-| Texto | `#1C2A3A` |
-| Fondo general | `#F4F7FA` |
-
-Títulos en **Montserrat**, texto en **Open Sans** (Google Fonts). Para afinar un tono, cambia solo las variables de `:root` en `public/styles.css`.
-
 ---
 
-# Guía paso a paso
+# Guía de instalación paso a paso
 
-## Antes de empezar: instala estas herramientas
+## Parte 0. Herramientas y cuentas
 
-1. **Git**: descárgalo de <https://git-scm.com/downloads> e instálalo con las opciones por defecto. Verifica en una terminal:
-   ```bash
-   git --version
-   ```
-2. **Node.js (versión LTS)**: descárgalo de <https://nodejs.org>. Verifica:
-   ```bash
-   node --version
-   ```
-   Debe mostrar `v18` o superior.
-3. **Un editor de código**, por ejemplo Visual Studio Code: <https://code.visualstudio.com>.
-4. **Cuentas gratuitas** en <https://supabase.com>, <https://github.com> y <https://dash.cloudflare.com>.
+1. Instala **Git** (<https://git-scm.com/downloads>), **Node.js LTS** (<https://nodejs.org>) y **Claude Code** (<https://docs.claude.com/en/docs/claude-code/overview>).
+2. Crea cuentas gratuitas en **Supabase** (<https://supabase.com>), **GitHub** (<https://github.com>), **Cloudflare** (<https://dash.cloudflare.com>) y **Resend** (<https://resend.com>).
+3. Para el reporte con IA, obtén una llave en la **Consola de Claude** (<https://console.anthropic.com>).
 
-> En Windows usa la terminal “Git Bash” (se instala con Git). En Mac usa “Terminal”.
+```bash
+git --version
+node --version     # v18 o superior
+```
 
----
-
-## Parte 1. Configurar Supabase
+## Parte 1. Supabase: base de datos y usuarios
 
 ### 1.1 Crear el proyecto
 
-1. Entra a <https://supabase.com/dashboard> e inicia sesión (puedes usar tu cuenta de GitHub).
-2. Haz clic en **New project**.
-3. Llena los datos:
-   - **Organization**: la tuya (se crea una por defecto).
-   - **Project name**: `hixsa-visitantes`.
-   - **Database password**: genera una contraseña segura y **guárdala** en un lugar seguro (no la usarás en el formulario, pero la necesitarás si administras la base).
-   - **Region**: elige la más cercana a México, por ejemplo *East US (North Virginia)*.
-4. Haz clic en **Create new project** y espera 1 a 2 minutos a que termine.
+1. En <https://supabase.com/dashboard> haz clic en **New project**.
+2. Nombre: `hixsa-visitantes`. Guarda la contraseña de la base de datos. Región: *East US (North Virginia)* o la más cercana.
+3. Espera a que termine de crearse.
 
-### 1.2 Crear la tabla y la seguridad
+### 1.2 Crear tablas y seguridad
 
-1. En el menú izquierdo entra a **SQL Editor**.
-2. Haz clic en **New query**.
-3. Abre el archivo `supabase/schema.sql` de este proyecto, copia **todo** su contenido y pégalo en el editor.
-4. Haz clic en **Run** (o `Ctrl + Enter`). Debe decir *Success. No rows returned*.
-5. Ve a **Table Editor** y confirma que existe la tabla `visitantes` con sus columnas y el candado de **RLS enabled**.
+1. Abre **SQL Editor → New query**.
+2. Pega el contenido completo de `supabase/schema.sql` y haz clic en **Run**.
+3. En **Table Editor** deben aparecer `visitantes`, `perfiles`, `configuracion` y `bitacora_reportes`, todas con **RLS enabled**.
 
-Qué hace el script, en resumen:
+> Si ya tenías la versión 1 instalada, ejecuta el mismo script: actualiza la tabla sin perder registros.
 
-- Crea la tabla `visitantes` con validaciones del lado del servidor (formato de correo, teléfono de 10 a 15 dígitos, motivo dentro de la lista, aceptación del aviso obligatoria).
-- Activa **Row Level Security (RLS)**.
-- Permite al público (rol `anon`) **solo insertar** registros y solo en las columnas del formulario. Nadie desde internet puede leer, editar ni borrar datos, ni falsificar la hora de llegada.
+### 1.3 Crear el usuario administrador
 
-### 1.3 (Opcional) Probar la seguridad
+1. Ve a **Authentication → Users → Add user → Create new user**.
+2. Correo: `admin@hixsa.com` (o el que prefieras). Contraseña segura. Marca **Auto Confirm User**.
+3. En **SQL Editor**, ejecuta `supabase/crear-admin.sql` (cambia el correo si usaste otro).
+4. El resultado debe mostrar una fila con `rol = admin`.
 
-En el SQL Editor, ejecuta esto. Simula ser un visitante anónimo:
+Los demás usuarios se dan de alta desde el panel, en **Configuración → Agregar usuario**.
 
-```sql
-begin;
-set local role anon;
+### 1.4 Obtener las llaves
 
--- Debe funcionar:
-insert into public.visitantes
-  (nombre_completo, empresa, correo, telefono, persona_visita, motivo, acepta_aviso)
-values
-  ('Prueba RLS', 'Hixsa', 'prueba@hixsa.com', '5512345678', 'Recepción', 'Otro', true);
+En **Project Settings → API Keys** (o el botón **Connect**):
 
--- Debe fallar con "permission denied" (el público no puede leer):
-select * from public.visitantes;
+| Dato | Dónde se usa | ¿Es secreto? |
+|---|---|---|
+| Project URL (`https://xxxx.supabase.co`) | Frontend, script, MCP | No |
+| Publishable key (`sb_publishable_…`) o anon key | Frontend (`SUPABASE_ANON_KEY`) | No |
+| Secret key (`sb_secret_…`) o service_role | Solo script del reporte (GitHub Secrets) | **Sí** |
+| Project ref (la parte `xxxx` de la URL) | CLI y MCP | No |
 
-rollback;
-```
+> ⚠️ La llave secreta nunca va en `public/` ni en el `.env` que se sube a GitHub. Las Edge Functions ya la reciben automáticamente.
 
-Si el `insert` pasa y el `select` marca *permission denied*, la seguridad está bien. El `rollback` deshace la prueba.
+## Parte 2. Resend: envío de correos
 
-### 1.4 Obtener la URL y la API Key
+1. En <https://resend.com> ve a **API Keys → Create API Key** y copia la llave (`re_…`).
+2. **Para producción**: en **Domains → Add Domain** agrega `hixsa.com` (o un subdominio como `visitas.hixsa.com`) y crea en el DNS los registros que te indique. Así podrás enviar desde `recepcion@hixsa.com` a cualquier persona.
+3. **Para pruebas**: sin dominio verificado puedes usar el remitente `onboarding@resend.dev`, pero Resend solo entrega a tu propio correo de la cuenta.
 
-1. En la parte superior del proyecto haz clic en el botón **Connect** (o ve a **Project Settings → API Keys** y **Project Settings → Data API**).
-2. Copia estos dos valores:
-   - **Project URL**: se ve como `https://abcdefghijk.supabase.co`.
-   - **Llave pública**: la **Publishable key** (empieza con `sb_publishable_...`) o, en la pestaña *Legacy API keys*, la llave **anon public** (empieza con `eyJ...`). Cualquiera de las dos funciona.
+## Parte 3. Desplegar las Edge Functions
 
-> ⚠️ **Nunca uses la llave `service_role` ni la `secret` (`sb_secret_...`)** en este proyecto. Esas saltan todas las reglas de seguridad. La llave pública sí puede estar en el navegador porque RLS la limita a solo insertar. El script de build bloquea automáticamente las llaves secretas.
-
-### 1.5 Probar en tu computadora
-
-1. Abre una terminal dentro de la carpeta del proyecto:
-   ```bash
-   cd ruta/a/hixsa-registro-visitantes
-   ```
-2. Crea tu archivo `.env` a partir de la plantilla:
-   ```bash
-   cp .env.example .env
-   ```
-3. Abre `.env` en tu editor y reemplaza los valores con los del paso 1.4:
-   ```
-   SUPABASE_URL=https://abcdefghijk.supabase.co
-   SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxx
-   ```
-4. Arranca el servidor local:
-   ```bash
-   npm run dev
-   ```
-5. Abre <http://localhost:3000>, llena el formulario y envíalo.
-6. En Supabase → **Table Editor → visitantes** debe aparecer tu registro.
-
-> Abrir `index.html` con doble clic **no funciona** (los navegadores bloquean los módulos de JavaScript desde archivos locales). Usa siempre `npm run dev`.
-
----
-
-## Parte 2. Git y GitHub
-
-### 2.1 Configurar Git (solo la primera vez en tu computadora)
+Desde la carpeta del proyecto:
 
 ```bash
-git config --global user.name "Tu Nombre"
-git config --global user.email "tu-correo@ejemplo.com"
-git config --global init.defaultBranch main
+npx supabase login
+npx supabase link --project-ref TU_PROJECT_REF
 ```
 
-Usa el mismo correo de tu cuenta de GitHub.
-
-### 2.2 Inicializar el repositorio y guardar la primera versión
-
-Dentro de la carpeta del proyecto:
+Configura los secretos de las funciones (cambia los valores):
 
 ```bash
-git init
-git status
+npx supabase secrets set RESEND_API_KEY=re_xxxxxxxx
+npx supabase secrets set EMAIL_FROM="HIXSA Recepción <recepcion@hixsa.com>"
+npx supabase secrets set PUBLIC_SITE_URL=https://hixsa-registro.pages.dev
+npx supabase secrets set ALLOWED_ORIGIN=https://hixsa-registro.pages.dev
 ```
 
-`git status` muestra los archivos que se van a guardar. **Revisa que NO aparezcan `.env` ni `public/config.js`** (el `.gitignore` los excluye a propósito).
+| Secreto | Para qué sirve |
+|---|---|
+| `RESEND_API_KEY` | Enviar pases y reportes |
+| `EMAIL_FROM` | Remitente de los correos |
+| `PUBLIC_SITE_URL` | El QR apunta a `PUBLIC_SITE_URL/admin.html?pase=…` para validarlo |
+| `ALLOWED_ORIGIN` | Solo tu sitio puede llamar a las funciones (usa `*` mientras pruebas en local) |
 
-Guarda la primera versión:
+Despliega las tres funciones:
 
 ```bash
-git add .
-git commit -m "feat: formulario de registro de visitantes HIXSA"
+npx supabase functions deploy registrar-visita --no-verify-jwt
+npx supabase functions deploy admin-usuarios --no-verify-jwt
+npx supabase functions deploy enviar-reporte --no-verify-jwt
 ```
 
-### 2.3 Crear el repositorio en GitHub
+> `--no-verify-jwt` es correcto: `registrar-visita` es pública y las otras dos verifican la sesión y el rol dentro del código.
 
-1. Entra a <https://github.com/new>.
-2. **Repository name**: `hixsa-registro-visitantes`.
-3. Visibilidad: **Public** (más fácil para la revisión del curso) o **Private**.
-4. **No** marques *Add a README*, *.gitignore* ni *license* (ya los tienes).
-5. Haz clic en **Create repository**.
+Verifica en **Supabase → Edge Functions** que aparezcan las tres.
 
-### 2.4 Conectar y subir
+## Parte 4. Probar en tu computadora
 
-GitHub te mostrará unos comandos; usa los de la sección *“…or push an existing repository”*. Se ven así (cambia `TU-USUARIO`):
+```bash
+cp .env.example .env
+```
+
+Edita `.env` con tu URL y tu llave pública:
+
+```text
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_xxxxxxxx
+```
+
+```bash
+npm run dev
+```
+
+1. Abre <http://localhost:3000>, registra una visita con **tu correo** y revisa que llegue el pase.
+2. Abre <http://localhost:3000/admin.html>, entra con el administrador y revisa la visita en **Consultas**.
+3. En **Configuración**, agrega un usuario de consulta y guarda los correos de recepción y destinatarios.
+
+## Parte 5. Git y GitHub
+
+Este proyecto ya incluye su historial de cambios (carpeta `.git`). Solo conéctalo a tu repositorio:
+
+1. Crea un repositorio vacío en <https://github.com/new> llamado `hixsa-registro-visitantes` (sin README ni .gitignore).
+2. Opcional: pon tu nombre como autor de todos los commits.
+
+```bash
+git config user.name "Tu Nombre"
+git config user.email "tu-correo@ejemplo.com"
+git rebase -r --root --exec "git commit --amend --no-edit --reset-author"
+```
+
+3. Sube el proyecto:
 
 ```bash
 git remote add origin https://github.com/TU-USUARIO/hixsa-registro-visitantes.git
-git branch -M main
 git push -u origin main
 ```
 
-La primera vez se abrirá una ventana del navegador para iniciar sesión en GitHub. Si en lugar de eso te pide contraseña en la terminal, crea un **token** en GitHub → *Settings → Developer settings → Personal access tokens → Tokens (classic)* con permiso `repo`, y pégalo como contraseña.
-
-Recarga la página del repositorio: deben aparecer todos los archivos.
-
-### 2.5 Guardar nuevas versiones (flujo de trabajo diario)
-
-Cada vez que hagas un cambio:
+Para cada cambio nuevo:
 
 ```bash
-git status                       # ver qué cambió
-git add .                        # preparar los cambios
-git commit -m "fix: corrige texto del botón"   # guardar versión con un mensaje claro
-git push                         # subir a GitHub (y Cloudflare lo publica solo)
+git add .
+git commit -m "fix: descripción corta del cambio"
+git push
 ```
 
-Prefijos recomendados para los mensajes: `feat:` (función nueva), `fix:` (corrección), `style:` (diseño), `docs:` (documentación).
+## Parte 6. Cloudflare Pages
 
-Para ver el historial de versiones:
-
-```bash
-git log --oneline
-```
-
----
-
-## Parte 3. Desplegar en Cloudflare Pages
-
-### 3.1 Conectar el repositorio
-
-1. Entra a <https://dash.cloudflare.com>.
-2. En el menú izquierdo abre **Workers & Pages** (en algunas cuentas aparece dentro de **Compute**).
-3. Haz clic en **Create** (o *Create application*) y elige la pestaña **Pages**.
-   > Si solo ves opciones de *Workers*, busca el enlace *“Looking to deploy Pages? Get started”*.
-4. Elige **Import an existing Git repository** y haz clic en **Connect GitHub**.
-5. Autoriza a Cloudflare. Puedes darle acceso solo al repositorio `hixsa-registro-visitantes`.
-6. Selecciona el repositorio y haz clic en **Begin setup**.
-
-### 3.2 Configurar el build
+1. En <https://dash.cloudflare.com> abre **Workers & Pages → Create → Pages → Import an existing Git repository**.
+2. Conecta GitHub y elige el repositorio.
+3. Configura el build:
 
 | Opción | Valor |
 |---|---|
-| Project name | `hixsa-registro` (define tu URL: `hixsa-registro.pages.dev`) |
-| Production branch | `main` |
 | Framework preset | `None` |
 | Build command | `npm run build` |
 | Build output directory | `public` |
 
-### 3.3 Agregar las variables de entorno
+4. En **Environment variables** agrega `SUPABASE_URL`, `SUPABASE_ANON_KEY` (la pública) y `NODE_VERSION` = `20`.
+5. **Save and Deploy**. Tu sitio queda en `https://NOMBRE.pages.dev` y el panel en `https://NOMBRE.pages.dev/admin.html`.
+6. Si el nombre final es distinto al que pusiste en `PUBLIC_SITE_URL` y `ALLOWED_ORIGIN`, actualiza esos secretos (Parte 3) y vuelve a desplegar las funciones.
 
-En la misma pantalla abre **Environment variables (advanced)** y agrega:
+## Parte 7. Reporte diario automático (GitHub Actions)
 
-| Variable name | Value |
+1. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Crea:
+
+| Secreto | Valor |
 |---|---|
-| `SUPABASE_URL` | tu Project URL de Supabase |
-| `SUPABASE_ANON_KEY` | tu llave pública (publishable o anon) |
-| `NODE_VERSION` | `20` |
+| `SUPABASE_URL` | Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Llave secreta (`sb_secret_…` o service_role) |
+| `ANTHROPIC_API_KEY` | Llave de la API de Claude |
+| `RESEND_API_KEY` | Llave de Resend |
+| `EMAIL_FROM` | Remitente, por ejemplo `HIXSA Recepción <recepcion@hixsa.com>` |
 
-Haz clic en **Save and Deploy**.
+2. Opcional: en la pestaña **Variables**, crea `CLAUDE_MODEL` para cambiar el modelo (por defecto `claude-haiku-5-5`).
+3. Los destinatarios se configuran en el panel: **Configuración → Destinatarios del reporte**.
+4. Prueba manual: **Actions → Reporte diario de visitas → Run workflow**. Marca *dry run* para generar solo la vista previa (se descarga como artefacto).
 
-### 3.4 Verificar el despliegue
+Prueba local sin enviar nada:
 
-1. Espera a que el log termine con **Success**. En el log verás la línea `✔ public/config.js generado para https://...supabase.co`.
-2. Abre la URL `https://hixsa-registro.pages.dev`.
-3. Registra una visita de prueba y confírmala en Supabase → **Table Editor**.
-4. Ábrela desde tu celular para revisar la versión móvil.
+```bash
+npm run reporte:demo
+```
 
-Desde ahora, **cada `git push` a `main` publica automáticamente** una nueva versión. Si subes otra rama, Cloudflare crea una URL de vista previa sin tocar producción.
+## Parte 8. MCP y skill en Claude Code
 
-### 3.5 Cambiar variables después del primer despliegue
+1. Exporta el identificador del proyecto y abre Claude Code en la carpeta:
 
-Proyecto en Cloudflare → **Settings → Variables and Secrets** → edita → luego ve a **Deployments** y en el último despliegue elige **Retry deployment** (las variables solo se aplican en un build nuevo).
+```bash
+export SUPABASE_PROJECT_REF=xxxx
+claude
+```
 
-### 3.6 (Opcional) Dominio propio
-
-Proyecto → **Custom domains → Set up a custom domain**, por ejemplo `visitas.hixsa.com`. Si el dominio ya está en Cloudflare, el DNS se configura solo.
+2. Claude Code detecta `.mcp.json` y pregunta si quieres usar el servidor `supabase`: acepta.
+3. Escribe `/mcp`, elige `supabase` y autentícate en el navegador con tu cuenta de Supabase.
+4. Pide: *“Genera el reporte semanal de visitas”*. Claude Code usa la skill `reporte-visitas`, consulta la base real por MCP y guarda el reporte en `reportes/`.
 
 ---
 
-## Lista de verificación para la entrega
+## Lista de verificación
 
-- [ ] La tabla `visitantes` existe en Supabase con RLS activado.
-- [ ] El formulario rechaza envíos con campos vacíos o con correo inválido.
-- [ ] El checkbox de aviso de privacidad es obligatorio y enlaza a <https://www.hixsa.com/sobre-nosotros/aviso-de-privacidad/>.
-- [ ] Un registro enviado desde la URL pública aparece en Supabase.
-- [ ] El repositorio en GitHub **no** contiene `.env` ni `public/config.js`.
-- [ ] El sitio se ve bien en celular y en computadora.
-- [ ] Enlaces para entregar: URL del repositorio de GitHub y URL de Cloudflare Pages.
+- [ ] Las 4 tablas existen con RLS y el administrador puede entrar al panel.
+- [ ] Un registro desde la URL pública envía el pase QR al correo.
+- [ ] Al escanear el QR con el celular y entrar al panel aparece “Pase válido”.
+- [ ] Un usuario de consulta ve **Consultas** pero no **Configuración**.
+- [ ] El reporte por correo llega con el CSV adjunto.
+- [ ] El workflow **Reporte diario de visitas** termina en verde.
+- [ ] Claude Code muestra el MCP `supabase` conectado y genera el reporte semanal.
+- [ ] El repositorio no contiene `.env` ni `public/config.js`.
 
 ## Solución de problemas
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| “El formulario aún no está conectado a la base de datos” | No existe `config.js` | Local: crea `.env` y corre `npm run dev`. Cloudflare: agrega las variables y vuelve a desplegar. |
-| “El servidor rechazó el registro por permisos” | Falta la política RLS o el GRANT | Vuelve a ejecutar `supabase/schema.sql` completo. |
-| “No existe la tabla de visitantes” | No se ejecutó el SQL, o en otro proyecto | Revisa que la URL de `.env` sea del proyecto donde corriste el SQL. |
-| “Uno de los datos no tiene el formato esperado” | Una validación del servidor rechazó un dato | Revisa teléfono (10 a 15 dígitos) y correo. |
-| El build de Cloudflare falla con “Faltan variables” | Variables mal escritas o no guardadas | Revisa los nombres exactos: `SUPABASE_URL`, `SUPABASE_ANON_KEY`. |
-| `git push` pide contraseña y la rechaza | GitHub ya no acepta contraseñas | Usa un token personal (paso 2.4). |
-| La página sale en blanco al abrir `index.html` con doble clic | Los módulos JS requieren servidor | Usa `npm run dev`. |
-
-## Agregar un campo nuevo
-
-1. En `supabase/schema.sql`: agrega la columna, su `check` y añádela al `grant insert (...)`. Ejecuta solo esos cambios con `alter table`.
-2. En `public/index.html`: copia un bloque `.field` existente y cambia `id`, `name` y textos.
-3. En `public/app.js`: agrega su regla en `rules` y su valor en `payload`.
+| “No hay conexión con el servidor” al registrar | Función no desplegada o `ALLOWED_ORIGIN` distinto al sitio | Revisa la Parte 3 y que el origen coincida exactamente (sin `/` final). |
+| El registro funciona pero no llega el correo | Dominio no verificado en Resend | Verifica el dominio o prueba con el correo de tu cuenta de Resend. En el panel la visita aparece con “Error de envío”. |
+| “Tu cuenta no tiene acceso al panel” | El usuario no tiene perfil o está inactivo | Ejecuta `crear-admin.sql` o actívalo desde Configuración. |
+| El QR abre el panel pero dice “no coincide” | Se cambió la visita después de emitir el pase | Es el comportamiento esperado: verificar identidad. |
+| El workflow falla con 401 de Supabase | Llave secreta incorrecta | Revisa `SUPABASE_SERVICE_ROLE_KEY` en GitHub Secrets. |
+| El reporte dice “resumen generado sin IA” | Falta `ANTHROPIC_API_KEY` o hubo un error temporal | Revisa el secreto; el reporte se envía igual. |
+| `/mcp` no muestra `supabase` | Falta `SUPABASE_PROJECT_REF` | Expórtalo antes de abrir Claude Code y reinicia. |
