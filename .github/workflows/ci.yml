@@ -1,0 +1,45 @@
+# Verificación automática en cada push y pull request.
+name: Verificación
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sintaxis del frontend y scripts
+        run: |
+          for f in public/*.js scripts/*.mjs; do cp "$f" /tmp/check.mjs; node --check /tmp/check.mjs && echo "✔ $f"; done
+          node --check scripts/build-config.js
+
+      - name: Build de prueba
+        env:
+          SUPABASE_URL: https://ejemplo.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_ejemplo
+        run: npm run build
+
+      - name: Reporte diario en modo demo
+        run: node scripts/reporte-diario.mjs --demo
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Tipos de las Edge Functions
+        working-directory: supabase/functions
+        env:
+          DENO_NO_PACKAGE_JSON: "1"
+        run: deno check registrar-visita/index.ts admin-usuarios/index.ts enviar-reporte/index.ts

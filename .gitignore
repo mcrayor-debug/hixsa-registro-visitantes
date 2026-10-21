@@ -8,3 +8,6 @@ node_modules/
 Thumbs.db
 .vscode/
 .idea/
+
+# Vistas previas del reporte diario
+reportes/
