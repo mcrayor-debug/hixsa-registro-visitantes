@@ -1,0 +1,13 @@
+{
+  "name": "hixsa-registro-visitantes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Formulario de registro rápido de visitantes para HIXSA (Supabase + Cloudflare Pages).",
+  "scripts": {
+    "build": "node scripts/build-config.js",
+    "dev": "node scripts/build-config.js && npx --yes serve public -l 3000"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

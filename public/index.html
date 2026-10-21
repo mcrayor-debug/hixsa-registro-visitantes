@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Registro de visitantes | HIXSA</title>
+  <meta name="description" content="Registra tu visita a las oficinas de HIXSA en menos de un minuto.">
+  <meta name="theme-color" content="#12365F">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312365F'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' fill='%231FA6DB' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- config.js se genera con `npm run build` a partir de las variables de entorno -->
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Panel de marca -->
+    <aside class="panel" aria-label="Información de la visita">
+      <a class="wordmark" href="https://www.hixsa.com" target="_blank" rel="noopener">HIXSA</a>
+
+      <div class="panel-intro">
+        <h1>Te damos la bienvenida a HIXSA</h1>
+        <p>Registra tu visita en menos de un minuto. Al terminar, preséntate en recepción.</p>
+      </div>
+
+      <div class="checkin">
+        <p class="checkin-label">Hora de llegada</p>
+        <time class="checkin-time" id="reloj">--:--</time>
+        <p class="checkin-date" id="fecha"></p>
+      </div>
+
+      <address class="panel-address">
+        Torre Mitikah, piso 17<br>
+        Av. Río Churubusco 601, Xoco, Benito Juárez, CDMX
+      </address>
+    </aside>
+
+    <!-- Formulario -->
+    <main class="form-area">
+      <div class="card">
+
+        <form id="registro" novalidate>
+          <header class="form-head">
+            <h2>Registro de visitantes</h2>
+            <p>Todos los campos son obligatorios, excepto los comentarios.</p>
+          </header>
+
+          <fieldset>
+            <legend>Tus datos</legend>
+
+            <div class="field">
+              <label for="nombre_completo">Nombre completo</label>
+              <input id="nombre_completo" name="nombre_completo" type="text" autocomplete="name"
+                     maxlength="120" required aria-describedby="nombre_completo-error">
+              <p class="error" id="nombre_completo-error" aria-live="polite"></p>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="empresa">Empresa</label>
+                <input id="empresa" name="empresa" type="text" autocomplete="organization"
+                       maxlength="120" required aria-describedby="empresa-hint empresa-error">
+                <p class="hint" id="empresa-hint">Si vienes por tu cuenta, escribe “Particular”.</p>
+                <p class="error" id="empresa-error" aria-live="polite"></p>
+              </div>
+
+              <div class="field">
+                <label for="telefono">Teléfono</label>
+                <input id="telefono" name="telefono" type="tel" autocomplete="tel" inputmode="tel"
+                       maxlength="20" placeholder="55 1234 5678" required aria-describedby="telefono-error">
+                <p class="error" id="telefono-error" aria-live="polite"></p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="correo">Correo electrónico</label>
+              <input id="correo" name="correo" type="email" autocomplete="email" inputmode="email"
+                     maxlength="254" placeholder="nombre@empresa.com" required aria-describedby="correo-error">
+              <p class="error" id="correo-error" aria-live="polite"></p>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Tu visita</legend>
+
+            <div class="field">
+              <label for="persona_visita">¿A quién visitas?</label>
+              <input id="persona_visita" name="persona_visita" type="text" maxlength="120"
+                     placeholder="Nombre de la persona o área" required aria-describedby="persona_visita-error">
+              <p class="error" id="persona_visita-error" aria-live="polite"></p>
+            </div>
+
+            <fieldset class="field" id="motivo-group" aria-describedby="motivo-error">
+              <legend class="label">Motivo de la visita</legend>
+              <div class="chips">
+                <label class="chip"><input type="radio" name="motivo" value="Reunión" required><span>Reunión</span></label>
+                <label class="chip"><input type="radio" name="motivo" value="Entrevista"><span>Entrevista</span></label>
+                <label class="chip"><input type="radio" name="motivo" value="Proveedor o servicio"><span>Proveedor o servicio</span></label>
+                <label class="chip"><input type="radio" name="motivo" value="Entrega o paquetería"><span>Entrega o paquetería</span></label>
+                <label class="chip"><input type="radio" name="motivo" value="Otro"><span>Otro</span></label>
+              </div>
+              <p class="error" id="motivo-error" aria-live="polite"></p>
+            </fieldset>
+
+            <div class="field">
+              <label for="comentarios">Comentarios <span class="optional">(opcional)</span></label>
+              <textarea id="comentarios" name="comentarios" rows="3" maxlength="500"
+                        aria-describedby="comentarios-count comentarios-error"></textarea>
+              <p class="hint counter" id="comentarios-count">0 / 500</p>
+              <p class="error" id="comentarios-error" aria-live="polite"></p>
+            </div>
+          </fieldset>
+
+          <!-- Trampa anti-bots: invisible para personas -->
+          <div class="hp" aria-hidden="true">
+            <label for="sitio_web">No llenes este campo</label>
+            <input id="sitio_web" name="sitio_web" type="text" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="field">
+            <label class="consent" for="acepta_aviso">
+              <input id="acepta_aviso" name="acepta_aviso" type="checkbox" required aria-describedby="acepta_aviso-error">
+              <span>
+                He leído y acepto el
+                <a href="https://www.hixsa.com/sobre-nosotros/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a>
+                de HIXSA.
+              </span>
+            </label>
+            <p class="error" id="acepta_aviso-error" aria-live="polite"></p>
+          </div>
+
+          <div class="status" id="estado" role="alert" hidden></div>
+
+          <button class="btn" id="enviar" type="submit">Registrar mi visita</button>
+        </form>
+
+        <!-- Confirmación -->
+        <section class="success" id="exito" tabindex="-1" hidden aria-labelledby="exito-titulo">
+          <svg class="success-icon" viewBox="0 0 52 52" aria-hidden="true">
+            <circle cx="26" cy="26" r="24" />
+            <path d="M15 27 l7 7 l15 -16" />
+          </svg>
+          <h2 id="exito-titulo">Listo, <span id="exito-nombre"></span>. Tu visita quedó registrada.</h2>
+          <p>Hora de registro: <strong id="exito-hora"></strong>. Preséntate en recepción para que te reciban.</p>
+          <button class="btn btn-secondary" id="nuevo" type="button">Registrar a otra persona</button>
+          <p class="hint" id="exito-reset"></p>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>
