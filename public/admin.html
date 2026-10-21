@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Panel de visitas | HIXSA</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#12365F">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312365F'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' fill='%231FA6DB' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="config.js"></script>
+  <script type="module" src="admin.js"></script>
+</head>
+<body class="admin">
+
+  <header class="topbar">
+    <div class="topbar-brand">
+      <a class="wordmark" href="index.html">HIXSA</a>
+      <span class="topbar-title">Panel de visitas</span>
+    </div>
+
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Secciones" hidden>
+      <button class="tab" role="tab" id="tab-consultas" data-tab="consultas" aria-controls="vista-consultas" aria-selected="true">Consultas</button>
+      <button class="tab" role="tab" id="tab-configuracion" data-tab="configuracion" aria-controls="vista-configuracion" aria-selected="false" hidden>Configuración</button>
+    </nav>
+
+    <div class="user" id="user" hidden>
+      <span class="user-name" id="user-name"></span>
+      <span class="badge" id="user-rol"></span>
+      <button class="link-btn" id="btn-password" type="button">Cambiar contraseña</button>
+      <button class="link-btn" id="btn-salir" type="button">Salir</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+
+    <!-- ===================== Inicio de sesión ===================== -->
+    <section class="login" id="vista-login" hidden aria-labelledby="login-titulo">
+      <form class="card login-card" id="form-login" novalidate>
+        <h1 id="login-titulo">Acceso para personal</h1>
+        <p class="muted">Consulta visitas, emite reportes y administra usuarios.</p>
+        <div class="field">
+          <label for="login-email">Correo</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-password">Contraseña</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="status" id="login-estado" role="alert" hidden></div>
+        <button class="btn" type="submit" id="btn-login">Entrar</button>
+        <a class="back-link" href="index.html">Volver al registro de visitantes</a>
+      </form>
+    </section>
+
+    <!-- ===================== Validación de pase QR ===================== -->
+    <section class="panel-section" id="vista-pase" hidden aria-labelledby="pase-titulo">
+      <div class="card pase-card" id="pase-card">
+        <h1 id="pase-titulo"></h1>
+        <p class="pase-estado" id="pase-estado"></p>
+        <dl class="pase-detalle" id="pase-detalle"></dl>
+        <button class="btn btn-secondary" id="btn-pase-cerrar" type="button">Ir a consultas</button>
+      </div>
+    </section>
+
+    <!-- ===================== Consultas ===================== -->
+    <section class="panel-section" id="vista-consultas" role="tabpanel" aria-labelledby="tab-consultas" hidden>
+      <form class="card filtros" id="form-filtros" novalidate>
+        <div class="filtros-rapidos" role="group" aria-label="Periodo rápido">
+          <button type="button" class="chip-btn" data-rango="hoy" aria-pressed="true">Hoy</button>
+          <button type="button" class="chip-btn" data-rango="semana" aria-pressed="false">Próximos 7 días</button>
+          <button type="button" class="chip-btn" data-rango="mes" aria-pressed="false">Este mes</button>
+          <button type="button" class="chip-btn" data-rango="mes-anterior" aria-pressed="false">Mes anterior</button>
+        </div>
+        <div class="filtros-grid">
+          <div class="field"><label for="f-desde">Desde</label><input id="f-desde" name="desde" type="date"></div>
+          <div class="field"><label for="f-hasta">Hasta</label><input id="f-hasta" name="hasta" type="date"></div>
+          <div class="field"><label for="f-empresa">Empresa</label><input id="f-empresa" name="empresa" type="text" maxlength="80"></div>
+          <div class="field">
+            <label for="f-motivo">Motivo</label>
+            <select id="f-motivo" name="motivo">
+              <option value="">Todos</option>
+              <option>Reunión</option><option>Entrevista</option><option>Proveedor o servicio</option>
+              <option>Entrega o paquetería</option><option>Otro</option>
+            </select>
+          </div>
+          <div class="field field-wide"><label for="f-texto">Buscar</label><input id="f-texto" name="texto" type="search" maxlength="80" placeholder="Nombre, correo, folio o persona visitada"></div>
+          <button class="btn btn-compact" type="submit">Buscar</button>
+        </div>
+      </form>
+
+      <div class="resultados-head">
+        <p class="resultados-total" id="res-total" aria-live="polite"></p>
+        <div class="acciones">
+          <button class="btn btn-secondary btn-compact" id="btn-csv" type="button" disabled>Descargar CSV</button>
+          <button class="btn btn-compact" id="btn-reporte" type="button" disabled>Enviar por correo</button>
+        </div>
+      </div>
+
+      <div class="table-wrap card">
+        <table class="tabla" id="tabla-visitas">
+          <thead>
+            <tr>
+              <th scope="col">Folio</th><th scope="col">Visitante</th><th scope="col">Empresa</th>
+              <th scope="col">Visita a</th><th scope="col">Motivo</th><th scope="col">Entrada</th>
+              <th scope="col">Salida</th><th scope="col">Estado</th><th scope="col">Pase</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-visitas"></tbody>
+        </table>
+        <p class="vacio" id="res-vacio" hidden>No hay visitas con estos filtros. Prueba con otro periodo.</p>
+      </div>
+    </section>
+
+    <!-- ===================== Configuración (solo admin) ===================== -->
+    <section class="panel-section" id="vista-configuracion" role="tabpanel" aria-labelledby="tab-configuracion" hidden>
+
+      <div class="config-grid">
+        <section class="card" aria-labelledby="usuarios-titulo">
+          <h2 id="usuarios-titulo">Usuarios</h2>
+          <p class="muted">Los usuarios de consulta pueden ver visitas y enviar reportes. Los administradores, además, gestionan usuarios y correos.</p>
+          <div class="table-wrap">
+            <table class="tabla tabla-usuarios">
+              <thead><tr><th scope="col">Nombre</th><th scope="col">Rol</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead>
+              <tbody id="tbody-usuarios"></tbody>
+            </table>
+          </div>
+
+          <form class="nuevo-usuario" id="form-usuario" novalidate>
+            <h3>Agregar usuario</h3>
+            <div class="grid-2">
+              <div class="field"><label for="u-nombre">Nombre completo</label><input id="u-nombre" name="nombre" type="text" required></div>
+              <div class="field"><label for="u-email">Correo</label><input id="u-email" name="email" type="email" required></div>
+            </div>
+            <div class="field">
+              <label for="u-rol">Rol</label>
+              <select id="u-rol" name="rol"><option value="consulta">Consulta</option><option value="admin">Administrador</option></select>
+            </div>
+            <div class="status" id="usuario-estado" role="alert" hidden></div>
+            <button class="btn btn-compact" type="submit">Agregar usuario</button>
+          </form>
+        </section>
+
+        <div class="config-col">
+          <section class="card" aria-labelledby="correos-titulo">
+            <h2 id="correos-titulo">Correos</h2>
+            <form id="form-config" novalidate>
+              <div class="field">
+                <label for="c-recepcion">Correo de recepción</label>
+                <input id="c-recepcion" name="correo_recepcion" type="email" placeholder="recepcion@hixsa.com">
+              </div>
+              <label class="check">
+                <input id="c-copia" name="copia_recepcion" type="checkbox">
+                <span>Enviar a recepción una copia de cada pase</span>
+              </label>
+              <div class="field">
+                <label for="c-destinatarios">Destinatarios del reporte</label>
+                <textarea id="c-destinatarios" name="destinatarios" rows="3" placeholder="Un correo por línea" aria-describedby="c-dest-hint"></textarea>
+                <p class="hint" id="c-dest-hint">Se usan por defecto al enviar reportes y en el reporte diario automático. Máximo 10.</p>
+              </div>
+              <div class="status" id="config-estado" role="alert" hidden></div>
+              <button class="btn btn-compact" type="submit">Guardar correos</button>
+            </form>
+          </section>
+
+          <section class="card" aria-labelledby="bitacora-titulo">
+            <h2 id="bitacora-titulo">Reportes enviados</h2>
+            <ol class="bitacora" id="lista-bitacora"></ol>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== Diálogos ===================== -->
+  <dialog class="dialog" id="dlg-reporte" aria-labelledby="dlg-reporte-titulo">
+    <form method="dialog" id="form-reporte" novalidate>
+      <h2 id="dlg-reporte-titulo">Enviar reporte por correo</h2>
+      <p class="muted" id="dlg-reporte-resumen"></p>
+      <div class="field">
+        <label for="r-destinatarios">Destinatarios</label>
+        <textarea id="r-destinatarios" rows="3" placeholder="Un correo por línea"></textarea>
+      </div>
+      <div class="status" id="reporte-estado" role="alert" hidden></div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary btn-compact" value="cancel" formnovalidate>Cancelar</button>
+        <button class="btn btn-compact" id="btn-enviar-reporte" type="submit" value="enviar">Enviar reporte</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-password" aria-labelledby="dlg-password-titulo">
+    <form method="dialog" id="form-password" novalidate>
+      <h2 id="dlg-password-titulo">Cambiar contraseña</h2>
+      <div class="field"><label for="p-nueva">Nueva contraseña</label><input id="p-nueva" type="password" autocomplete="new-password" minlength="10"></div>
+      <div class="field"><label for="p-confirmar">Confirma la contraseña</label><input id="p-confirmar" type="password" autocomplete="new-password"></div>
+      <p class="hint">Mínimo 10 caracteres.</p>
+      <div class="status" id="password-estado" role="alert" hidden></div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary btn-compact" value="cancel" formnovalidate>Cancelar</button>
+        <button class="btn btn-compact" type="submit" value="guardar">Guardar contraseña</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-credenciales" aria-labelledby="dlg-cred-titulo">
+    <form method="dialog">
+      <h2 id="dlg-cred-titulo">Contraseña temporal</h2>
+      <p id="cred-texto"></p>
+      <p class="cred-password"><code id="cred-password"></code></p>
+      <p class="hint">Compártela por un canal seguro. Solo se muestra esta vez; la persona puede cambiarla al entrar.</p>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary btn-compact" type="button" id="btn-copiar">Copiar</button>
+        <button class="btn btn-compact" value="ok">Listo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
