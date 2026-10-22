@@ -2,6 +2,8 @@
 
 Sistema para que los visitantes de HIXSA registren su visita en línea, reciban un **pase con código QR** por correo y lo muestren en recepción. El personal consulta las visitas, emite reportes y administra usuarios desde un **panel con inicio de sesión**, y cada mañana Dirección recibe un **reporte automático** analizado con la API de Claude.
 
+> **¿Primera vez?** Sigue la guía para principiantes con imágenes: [`docs/GUIA_DESPLIEGUE.md`](docs/GUIA_DESPLIEGUE.md)
+>
 > Documentación de los entregables del curso: [`docs/ENTREGABLES.md`](docs/ENTREGABLES.md)
 
 | Capa | Tecnología |
