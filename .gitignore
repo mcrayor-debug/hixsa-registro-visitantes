@@ -1,0 +1,10 @@
+# Secretos y archivos generados
+.env
+public/config.js
+
+# Sistema / editores
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
