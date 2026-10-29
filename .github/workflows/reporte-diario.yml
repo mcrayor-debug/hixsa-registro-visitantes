@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       fecha:
-        description: "Día a analizar (AAAA-MM-DD). Vacío = ayer"
+        description: "Día a analizar (2026-10-23). Vacío = ayer"
         required: false
         default: ""
       dry_run:
