@@ -278,3 +278,4 @@ claude
 | El workflow falla con 401 de Supabase | Llave secreta incorrecta | Revisa `SUPABASE_SERVICE_ROLE_KEY` en GitHub Secrets. |
 | El reporte dice “resumen generado sin IA” | Falta `ANTHROPIC_API_KEY` o hubo un error temporal | Revisa el secreto; el reporte se envía igual. |
 | `/mcp` no muestra `supabase` | Falta `SUPABASE_PROJECT_REF` | Expórtalo antes de abrir Claude Code y reinicia. |
+# hixsa-registro-visitantes
