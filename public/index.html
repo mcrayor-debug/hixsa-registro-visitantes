@@ -27,19 +27,21 @@
 
       <div class="panel-intro">
         <h1>Te damos la bienvenida a HIXSA</h1>
-        <p>Registra tu visita en menos de un minuto. Al terminar, preséntate en recepción.</p>
+        <p>Registra tu visita y recibe en tu correo un pase con código QR para mostrar en recepción.</p>
       </div>
 
-      <div class="checkin">
-        <p class="checkin-label">Hora de llegada</p>
-        <time class="checkin-time" id="reloj">--:--</time>
-        <p class="checkin-date" id="fecha"></p>
+      <div class="checkin" aria-live="polite">
+        <p class="checkin-label">Tu entrada</p>
+        <time class="checkin-time" id="resumen-hora">--:--</time>
+        <p class="checkin-date" id="resumen-fecha"></p>
+        <p class="checkin-exit" id="resumen-salida"></p>
       </div>
 
       <address class="panel-address">
         Torre Mitikah, piso 17<br>
         Av. Río Churubusco 601, Xoco, Benito Juárez, CDMX
       </address>
+      <a class="staff-link" href="admin.html">Acceso para personal de HIXSA</a>
     </aside>
 
     <!-- Formulario -->
@@ -85,6 +87,35 @@
                      maxlength="254" placeholder="nombre@empresa.com" required aria-describedby="correo-error">
               <p class="error" id="correo-error" aria-live="polite"></p>
             </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Horario de la visita</legend>
+            <p class="hint fieldset-hint">Hora del centro de México.</p>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="fecha_entrada">Fecha de entrada</label>
+                <input id="fecha_entrada" name="fecha_entrada" type="date" required aria-describedby="entrada-error">
+              </div>
+              <div class="field">
+                <label for="hora_entrada">Hora de entrada</label>
+                <input id="hora_entrada" name="hora_entrada" type="time" step="900" required aria-describedby="entrada-error">
+              </div>
+            </div>
+            <p class="error field-error-row" id="entrada-error" aria-live="polite"></p>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="fecha_salida">Fecha de salida</label>
+                <input id="fecha_salida" name="fecha_salida" type="date" required aria-describedby="salida-error">
+              </div>
+              <div class="field">
+                <label for="hora_salida">Hora de salida</label>
+                <input id="hora_salida" name="hora_salida" type="time" step="900" required aria-describedby="salida-error">
+              </div>
+            </div>
+            <p class="error field-error-row" id="salida-error" aria-live="polite"></p>
           </fieldset>
 
           <fieldset>
@@ -143,12 +174,17 @@
 
         <!-- Confirmación -->
         <section class="success" id="exito" tabindex="-1" hidden aria-labelledby="exito-titulo">
-          <svg class="success-icon" viewBox="0 0 52 52" aria-hidden="true">
-            <circle cx="26" cy="26" r="24" />
-            <path d="M15 27 l7 7 l15 -16" />
-          </svg>
           <h2 id="exito-titulo">Listo, <span id="exito-nombre"></span>. Tu visita quedó registrada.</h2>
-          <p>Hora de registro: <strong id="exito-hora"></strong>. Preséntate en recepción para que te reciban.</p>
+          <figure class="pass">
+            <img id="exito-qr" width="220" height="220" alt="Código QR de tu pase de visita">
+            <figcaption class="pass-folio" id="exito-folio"></figcaption>
+          </figure>
+          <dl class="pass-data">
+            <div><dt>Entrada</dt><dd id="exito-entrada"></dd></div>
+            <div><dt>Salida</dt><dd id="exito-salida"></dd></div>
+          </dl>
+          <p class="pass-mail" id="exito-correo"></p>
+          <a class="btn" id="exito-descargar" download>Descargar pase</a>
           <button class="btn btn-secondary" id="nuevo" type="button">Registrar a otra persona</button>
           <p class="hint" id="exito-reset"></p>
         </section>
