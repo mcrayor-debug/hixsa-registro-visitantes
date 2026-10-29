@@ -10,7 +10,7 @@
 | 2. App conectada a datos reales por MCP + skill | `.mcp.json`, `.claude/skills/reporte-visitas/` | Listo |
 | 3. Script que usa la API sin intervención manual | `scripts/reporte-diario.mjs`, `.github/workflows/reporte-diario.yml` | Listo |
 | 4. Proyecto integrador de punta a punta | Todo el repositorio; este documento | Listo |
-| Demo, repositorio documentado y presentación de 15 min | Sitio en Cloudflare Pages, `README.md`, `Presentacion_Direccion_Registro_Visitas.pptx` | Listo |
+| Demo, repositorio documentado y presentación de 15 min | Sitio en Cloudflare Pages, `README.md`, `docs/Presentacion_Direccion_Registro_Visitas.pptx` | Listo |
 
 ### Evidencia visual
 
@@ -43,6 +43,9 @@ Un repositorio Git publicado en GitHub cuyo historial muestra la evolución del 
 | 7 | Funcionalidad (mcp) | Conexión MCP a Supabase y skill de reporte semanal |
 | 8 | Corrección (automatización) | Compatibilidad con llaves secretas nuevas de Supabase (sb_secret_) |
 | 9 | Documentación | Guía de instalación v2, entregables del curso y changelog |
+| 10 | Documentación | Tabla del historial de cambios en ENTREGABLES |
+| 11 | Documentación | Diagramas y capturas como evidencia; plurales en el reporte de respaldo |
+| 12 | Documentación | Presentación para Dirección e historial completo |
 
 Cada commit incluye un cuerpo con el detalle de los cambios (`git show <commit>`).
 
@@ -352,4 +355,4 @@ Pasos detallados en `README.md`, Partes 1 a 8.
 - [ ] URL pública del sitio en Cloudflare Pages
 - [ ] Usuario de consulta de prueba para quien evalúe
 - [ ] Capturas: pase recibido, panel, `/mcp` conectado, workflow en verde
-- [ ] `Presentacion_Direccion_Registro_Visitas.pptx`
+- [ ] `docs/Presentacion_Direccion_Registro_Visitas.pptx` (13 diapositivas con notas del orador)
