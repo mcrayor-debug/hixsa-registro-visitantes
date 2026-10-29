@@ -12,6 +12,16 @@
 | 4. Proyecto integrador de punta a punta | Todo el repositorio; este documento | Listo |
 | Demo, repositorio documentado y presentación de 15 min | Sitio en Cloudflare Pages, `README.md`, `Presentacion_Direccion_Registro_Visitas.pptx` | Listo |
 
+### Evidencia visual
+
+| Formulario con horario | Pase con QR |
+|---|---|
+| ![Formulario](img/captura-form.png) | ![Pase](img/captura-pase.png) |
+| **Panel: Consultas** | **Panel: Configuración** |
+| ![Consultas](img/captura-consultas.png) | ![Configuración](img/captura-config.png) |
+
+Validación del pase en celular: `img/captura-validacion.png`. Diagramas en PNG: `img/modelo-datos.png`, `img/arquitectura.png`, `img/flujo-visitante.png`.
+
 ---
 
 ## Entregable 1. Repositorio con historial de cambios

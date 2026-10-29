@@ -153,14 +153,15 @@ async function resumenConClaude(kpi) {
 
 function resumenBasico(k, nota) {
   const alertas = [];
-  if (k.pases_con_error_de_envio) alertas.push(`${k.pases_con_error_de_envio} pases no se pudieron enviar por correo.`);
-  if (k.visitas_mayores_8h) alertas.push(`${k.visitas_mayores_8h} visitas duraron más de 8 horas.`);
+  const n = (x, uno, varios) => `${x} ${x === 1 ? uno : varios}`;
+  if (k.pases_con_error_de_envio) alertas.push(`${n(k.pases_con_error_de_envio, 'pase no se pudo', 'pases no se pudieron')} enviar por correo.`);
+  if (k.visitas_mayores_8h) alertas.push(`${n(k.visitas_mayores_8h, 'visita duró', 'visitas duraron')} más de 8 horas.`);
   return {
     resumen: `El ${fechaLarga(k.fecha_analizada)} hubo ${k.total_visitas} visitas de ${k.empresas_distintas} empresas. ` +
       (k.hora_pico ? `La hora pico fue a las ${k.hora_pico.hora}. ` : '') +
       `Hoy hay ${k.visitas_programadas_hoy} visitas programadas.`,
     alertas,
-    recomendacion: k.entregas_programadas_hoy ? `Prever espacio para ${k.entregas_programadas_hoy} entregas programadas hoy.` : '',
+    recomendacion: k.entregas_programadas_hoy ? `Prever espacio para ${k.entregas_programadas_hoy === 1 ? '1 entrega programada' : `${k.entregas_programadas_hoy} entregas programadas`} hoy.` : '',
     fuente: nota,
   };
 }
