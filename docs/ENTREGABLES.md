@@ -22,7 +22,19 @@ Un repositorio Git publicado en GitHub cuyo historial muestra la evolución del 
 
 ### Historial
 
-<!-- HISTORIAL -->
+| # | Tipo | Cambio |
+|---|---|---|
+| 1 | Funcionalidad | Formulario público de registro de visitantes (v1) |
+| 2 | Funcionalidad (db) | Modelo v2 con horario, folio, perfiles, configuración y bitácora |
+| 3 | Funcionalidad (api) | Edge Functions para registro con QR, usuarios y reportes |
+| 4 | Funcionalidad (web) | Horario de entrada y salida, y pase con QR en pantalla |
+| 5 | Funcionalidad (panel) | Panel interno con autenticación, consultas, reportes y configuración |
+| 6 | Funcionalidad (automatización) | Reporte diario con API de Supabase y API de Claude |
+| 7 | Funcionalidad (mcp) | Conexión MCP a Supabase y skill de reporte semanal |
+| 8 | Corrección (automatización) | Compatibilidad con llaves secretas nuevas de Supabase (sb_secret_) |
+| 9 | Documentación | Guía de instalación v2, entregables del curso y changelog |
+
+Cada commit incluye un cuerpo con el detalle de los cambios (`git show <commit>`).
 
 ### Buenas prácticas aplicadas
 
