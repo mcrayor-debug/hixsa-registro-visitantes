@@ -1,0 +1,13 @@
+# Configuración mínima para desplegar las Edge Functions con la CLI de Supabase.
+# La verificación de identidad se hace dentro de cada función (ver _shared/auth.ts),
+# por eso verify_jwt = false: así funcionan tanto las llaves anon (legacy) como las publishable.
+project_id = "hixsa-registro-visitantes"
+
+[functions.registrar-visita]
+verify_jwt = false
+
+[functions.admin-usuarios]
+verify_jwt = false
+
+[functions.enviar-reporte]
+verify_jwt = false
