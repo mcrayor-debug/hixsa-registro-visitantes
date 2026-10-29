@@ -1,0 +1,55 @@
+# Reporte diario de visitas: corre solo de lunes a viernes a las 07:00 (CDMX).
+# Secretos necesarios en GitHub > Settings > Secrets and variables > Actions:
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY, EMAIL_FROM
+name: Reporte diario de visitas
+
+on:
+  schedule:
+    - cron: "0 13 * * 1-5" # 13:00 UTC = 07:00 en Ciudad de México
+  workflow_dispatch:
+    inputs:
+      fecha:
+        description: "Día a analizar (AAAA-MM-DD). Vacío = ayer"
+        required: false
+        default: ""
+      dry_run:
+        description: "Solo generar vista previa, sin enviar correo"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  reporte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generar y enviar reporte
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          FECHA: ${{ inputs.fecha }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ -n "$FECHA" ]; then ARGS="$ARGS --fecha=$FECHA"; fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          node scripts/reporte-diario.mjs $ARGS
+
+      - name: Guardar vista previa
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-vista-previa
+          path: reportes/*.html
