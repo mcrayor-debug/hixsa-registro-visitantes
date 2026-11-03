@@ -78,7 +78,7 @@ async function supabase(ruta, opciones = {}) {
   return res.status === 204 || opciones.method === 'POST' ? null : res.json();
 }
 
-const CAMPOS = 'folio,nombre_completo,empresa,persona_visita,motivo,entrada,salida,qr_enviado_at,correo_error';
+const CAMPOS = 'folio,nombre_completo,empresa,persona_visita,motivo,entrada,salida,llegada_at,salida_real_at,qr_enviado_at,correo_error';
 const rango = (d) => `entrada=gte.${encodeURIComponent(`${d}T00:00:00${OFFSET}`)}&entrada=lte.${encodeURIComponent(`${d}T23:59:59.999${OFFSET}`)}`;
 
 async function obtenerDatos() {
@@ -112,6 +112,9 @@ function indicadores(ayer, agenda) {
     duracion_promedio_horas: duraciones.length ? +(duraciones.reduce((a, b) => a + b, 0) / duraciones.length).toFixed(1) : 0,
     visitas_mayores_8h: duraciones.filter((h) => h > 8).length,
     pases_con_error_de_envio: ayer.filter((v) => v.correo_error).length,
+    asistieron: ayer.filter((v) => v.llegada_at).length,
+    no_se_presentaron: ayer.filter((v) => !v.llegada_at).length,
+    sin_salida_registrada: ayer.filter((v) => v.llegada_at && !v.salida_real_at).length,
     visitas_programadas_hoy: agenda.length,
     entregas_programadas_hoy: agenda.filter((v) => v.motivo === 'Entrega o paquetería').length,
   };
@@ -155,6 +158,8 @@ function resumenBasico(k, nota) {
   const alertas = [];
   const n = (x, uno, varios) => `${x} ${x === 1 ? uno : varios}`;
   if (k.pases_con_error_de_envio) alertas.push(`${n(k.pases_con_error_de_envio, 'pase no se pudo', 'pases no se pudieron')} enviar por correo.`);
+  if (k.no_se_presentaron) alertas.push(`${n(k.no_se_presentaron, 'visita no se presentó', 'visitas no se presentaron')}.`);
+  if (k.sin_salida_registrada) alertas.push(`${n(k.sin_salida_registrada, 'visita no tiene', 'visitas no tienen')} salida registrada.`);
   if (k.visitas_mayores_8h) alertas.push(`${n(k.visitas_mayores_8h, 'visita duró', 'visitas duraron')} más de 8 horas.`);
   return {
     resumen: `El ${fechaLarga(k.fecha_analizada)} hubo ${k.total_visitas} visitas de ${k.empresas_distintas} empresas. ` +
@@ -221,7 +226,8 @@ function datosDemo() {
   return {
     destinatarios: ['direccion@hixsa.com'],
     ayer: [
-      v(dia, '09:00', '10:30', 'Ana López', 'Grupo Norte', 'Carlos Méndez', 'Reunión'),
+      { ...v(dia, '09:00', '10:30', 'Ana López', 'Grupo Norte', 'Carlos Méndez', 'Reunión'), llegada_at: `${dia}T09:05:00${OFFSET}`, salida_real_at: `${dia}T10:20:00${OFFSET}` },
+      { ...v(dia, '09:30', '10:00', 'Pedro Gil', 'Banco Central', 'Dirección Comercial', 'Reunión'), llegada_at: `${dia}T09:40:00${OFFSET}` },
       v(dia, '10:00', '11:00', 'Luis Hernández', 'Logística MX', 'Recepción', 'Entrega o paquetería'),
       v(dia, '10:15', '12:00', 'Sofía Ruiz', 'Grupo Norte', 'Carlos Méndez', 'Reunión'),
       v(dia, '10:30', '19:30', 'Jorge Ramírez', 'SecureNet', 'Ing. Patricia Gómez', 'Proveedor o servicio'),

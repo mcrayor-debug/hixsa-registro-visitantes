@@ -1,5 +1,22 @@
 # Historial de versiones
 
+## 3.0.0 (noviembre 2026)
+
+### Nuevo
+- Panel interno migrado a **React 18 + Vite**, publicado en `/admin/` (`admin.html` redirige).
+- **Recepción**: lector de QR con la cámara, ficha de la visita y registro de **llegada y salida reales**.
+- **Aviso al anfitrión** por correo cuando llega su visita (activable en Configuración).
+- **Directorio de anfitriones** administrable; el formulario muestra solo nombre y área.
+- **Identificación** en el registro: tipo (INE, licencia, pasaporte, ID de empresa, otro) y foto, guardada en un bucket privado.
+- **Tablero de estadísticas**: asistencia, en sitio, duración real, visitas por día, hora de llegada, motivos, anfitriones y empresas.
+- Nueva Edge Function `registrar-acceso`.
+- Reporte diario: asistencia, visitas que no se presentaron y visitas sin salida registrada.
+
+### Cambios
+- Cloudflare publica la carpeta `dist` (antes `public`); requiere `npm install` en local.
+- `scripts/build-config.js` pasa a `build-config.cjs`; nuevo `scripts/build.mjs`.
+- Cabeceras: cámara permitida para el sitio e imágenes de Supabase Storage.
+
 ## 2.0.0 (octubre 2026)
 
 ### Nuevo

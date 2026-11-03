@@ -1,6 +1,6 @@
 # Guía de despliegue paso a paso (para principiantes)
 
-**Proyecto:** Registro de visitas HIXSA
+**Proyecto:** Registro de visitas HIXSA (versión 3)
 **Tiempo estimado:** 2 a 3 horas la primera vez
 **No necesitas saber programar.** Solo copia, pega y sigue los pasos en orden.
 
@@ -117,7 +117,7 @@ Supabase guarda las visitas, maneja el inicio de sesión del personal y ejecuta 
 
 ![SQL Editor de Supabase con el botón Run](img/guia/sql.png)
 
-**Qué deberías ver:** el mensaje **Success. No rows returned**. Luego, en **Table Editor**, aparecen cuatro tablas: `visitantes`, `perfiles`, `configuracion` y `bitacora_reportes`.
+**Qué deberías ver:** el mensaje **Success. No rows returned**. Luego, en **Table Editor**, aparecen cinco tablas: `visitantes`, `perfiles`, `configuracion`, `bitacora_reportes` y `anfitriones`. En **Storage** aparece un bucket privado llamado `identificaciones`, donde se guardan las fotos de las identificaciones.
 
 > Si aparece un aviso sobre “operaciones destructivas”, confirma con **Run this query**: el script está hecho para poder ejecutarse más de una vez sin borrar datos.
 
@@ -233,43 +233,55 @@ npx supabase secrets set ALLOWED_ORIGIN=*
 
 ```bash
 npx supabase functions deploy registrar-visita --no-verify-jwt
+npx supabase functions deploy registrar-acceso --no-verify-jwt
 npx supabase functions deploy admin-usuarios --no-verify-jwt
 npx supabase functions deploy enviar-reporte --no-verify-jwt
 ```
 
-**Qué deberías ver:** `Deployed Functions on project …: registrar-visita` (y lo mismo para las otras dos). En Supabase, en **Edge Functions**, aparecen las tres.
+**Qué deberías ver:** `Deployed Functions on project …: registrar-visita` (y lo mismo para las otras tres). En Supabase, en **Edge Functions**, aparecen las cuatro.
 
 > Si aparece un aviso sobre **Docker** pero al final dice `Deployed Functions`, todo está bien. Si se detiene con un error de Docker, repite el comando agregando ` --use-api` al final.
 
 ## 4.5 Prueba el sitio en tu computadora
 
-1. Crea tu archivo de configuración local:
+1. Instala las librerías del proyecto (React, Vite y otras). Tarda uno o dos minutos y solo se hace una vez:
+
+```bash
+npm install
+```
+
+**Qué deberías ver:** al final, algo como `added 120 packages`. Aparece una carpeta `node_modules` que Git ignora.
+
+2. Crea tu archivo de configuración local:
 
 ```bash
 cp .env.example .env
 ```
 
-2. En VS Code abre el archivo `.env` (aparece en la lista de la izquierda) y cambia las dos primeras líneas por tus datos:
+3. En VS Code abre el archivo `.env` (aparece en la lista de la izquierda) y cambia las dos primeras líneas por tus datos:
 
 ```text
 SUPABASE_URL=https://abcd1234.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_Xy12...
 ```
 
-3. Guarda el archivo (**Ctrl + S**) y arranca el sitio:
+4. Guarda el archivo (**Ctrl + S**) y arranca el sitio (primero arma el formulario y el panel en la carpeta `dist`):
 
 ```bash
 npm run dev
 ```
 
-4. Abre <http://localhost:3000> en tu navegador. Registra una visita usando **el correo de tu cuenta de Resend**.
+5. Abre <http://localhost:3000> en tu navegador. Registra una visita usando **el correo de tu cuenta de Resend**. Para la foto de la identificación puedes usar cualquier imagen.
+
+![Sección de identificación del formulario con la foto tomada](img/captura-v3-identificacion.png)
 
 **Qué deberías ver:** la pantalla con tu folio y tu código QR, y unos segundos después el correo con el pase.
 
 ![Pantalla de confirmación con el pase QR](img/captura-pase.png)
 
-5. Abre <http://localhost:3000/admin.html>, entra con el correo y la contraseña del administrador y revisa que tu visita aparezca en **Consultas**.
-6. Para detener el sitio local, haz clic en la terminal y presiona **Ctrl + C**.
+6. Abre <http://localhost:3000/admin/>, entra con el correo y la contraseña del administrador y revisa que tu visita aparezca en **Recepción** y en **Consultas**.
+7. Si cambias algo del código, detén el sitio y vuelve a ejecutar `npm run dev`.
+8. Para detener el sitio local, haz clic en la terminal y presiona **Ctrl + C**.
 
 > El archivo `.env` es privado: Git lo ignora automáticamente y nunca se sube a GitHub.
 
@@ -364,7 +376,7 @@ Llena exactamente así:
 | Production branch | `main` |
 | Framework preset | `None` |
 | Build command | `npm run build` |
-| Build output directory | `public` |
+| Build output directory | `dist` |
 
 Abre **Environment variables (advanced)** y agrega tres variables con **+ Add variable**:
 
@@ -376,13 +388,15 @@ Abre **Environment variables (advanced)** y agrega tres variables con **+ Add va
 
 ![Configuración de Cloudflare Pages](img/guia/cloudflare.png)
 
+Cloudflare instala solo las librerías del proyecto antes de armarlo; no tienes que hacer nada más.
+
 Haz clic en **Save and Deploy**.
 
 ## 6.4 Espera la publicación
 
 **Qué deberías ver:** un registro de texto que avanza y termina en **Success: Your site is deployed!**. Entre las líneas aparece `✔ public/config.js generado para https://…supabase.co`.
 
-Anota tu dirección, por ejemplo `https://hixsa-registro.pages.dev`. Ábrela: debe aparecer el formulario.
+Anota tu dirección, por ejemplo `https://hixsa-registro.pages.dev`. Ábrela: debe aparecer el formulario. El panel está en `https://hixsa-registro.pages.dev/admin/`.
 
 ## 6.5 Cierra el acceso de las funciones a tu sitio
 
@@ -393,7 +407,7 @@ npx supabase secrets set ALLOWED_ORIGIN=https://hixsa-registro.pages.dev
 npx supabase secrets set PUBLIC_SITE_URL=https://hixsa-registro.pages.dev
 ```
 
-Normalmente los secretos se aplican en unos segundos. Si después de un minuto el formulario publicado dice “No hay conexión con el servidor”, repite los tres comandos del paso 4.4.
+Normalmente los secretos se aplican en unos segundos. Si después de un minuto el formulario publicado dice “No hay conexión con el servidor”, repite los cuatro comandos del paso 4.4.
 
 > Con esto, solo tu sitio publicado puede usar las funciones. Si después quieres probar otra vez en tu computadora (`npm run dev`), vuelve a poner `ALLOWED_ORIGIN=*` mientras pruebas.
 
@@ -428,11 +442,19 @@ Este es el **Entregable 3**: cada día hábil a las 7:00 GitHub genera el report
 
 ## 7.3 Elige quién recibe el reporte
 
-1. Entra a tu sitio: `https://hixsa-registro.pages.dev/admin.html` con el administrador.
-2. Pestaña **Configuración → Correos → Destinatarios del reporte**: escribe un correo por línea (para pruebas, el de tu cuenta de Resend).
-3. Haz clic en **Guardar correos**.
+1. Entra al panel: `https://hixsa-registro.pages.dev/admin/` con el administrador.
+2. Pestaña **Configuración → Correos y avisos → Destinatarios del reporte**: escribe un correo por línea (para pruebas, el de tu cuenta de Resend).
+3. Deja marcada **Avisar al anfitrión cuando llega su visita** y haz clic en **Guardar**.
 
-## 7.4 Pruébalo sin esperar a mañana
+## 7.4 Agrega a los anfitriones
+
+Los anfitriones son las personas de HIXSA que reciben visitas. Aparecen en la lista “¿A quién visitas?” del formulario.
+
+1. En **Configuración → Anfitriones → Agregar anfitrión**, escribe nombre, área y correo.
+2. Para la prueba, usa como correo del anfitrión **el de tu cuenta de Resend**: así verás llegar el aviso.
+3. Si alguien deja de recibir visitas, usa **Ocultar** (no se borra, para conservar el historial).
+
+## 7.5 Pruébalo sin esperar a mañana
 
 1. En GitHub: pestaña **Actions** → a la izquierda, **Reporte diario de visitas**.
 2. Botón **Run workflow** → deja *dry run* sin marcar → **Run workflow**.
@@ -445,17 +467,21 @@ Este es el **Entregable 3**: cada día hábil a las 7:00 GitHub genera el report
 
 ## 8.1 Prueba completa
 
-1. **Desde tu celular**, abre tu sitio y registra una visita para dentro de una hora.
+1. **Desde tu celular**, abre tu sitio y registra una visita para dentro de una hora: elige al anfitrión de la lista, el tipo de identificación y toma la foto.
 2. Revisa que llegue el correo con el pase QR.
-3. **Con otro celular**, escanea el QR con la cámara. Se abre el panel: inicia sesión.
+3. **En la computadora o tablet de recepción**, entra al panel, pestaña **Recepción → Abrir cámara**. La primera vez el navegador pide permiso para usar la cámara: acepta. Apunta al QR del celular.
+4. Debe aparecer la ficha con **“Pase válido”**. Haz clic en **Ver foto de la identificación** y luego en **Registrar llegada**. Al anfitrión le llega un correo de aviso.
+5. Haz clic en **Registrar salida** para cerrar la visita.
 
-![Validación del pase al escanear el QR](img/captura-validacion.png)
+> También funciona escaneando el QR con la cámara normal de un celular: se abre el panel directamente con la ficha.
 
-4. En **Consultas**, elige **Hoy** y verifica que aparezca la visita.
-5. En **Configuración**, agrega un usuario de consulta. Copia la contraseña temporal que aparece.
-6. Cierra sesión y entra con ese usuario: debe ver **Consultas** pero **no** **Configuración**.
+![Recepción: ficha del pase válido con la identificación y el botón para registrar la llegada](img/captura-v3-ficha.png)
 
-![Panel de consultas con las visitas del día](img/captura-consultas.png)
+6. En **Tablero**, revisa que la visita cuente en las gráficas; en **Consultas**, elige **Hoy** y verifica que aparezca.
+7. En **Configuración**, agrega un usuario de consulta. Copia la contraseña temporal que aparece.
+8. Cierra sesión y entra con ese usuario: debe ver **Recepción**, **Tablero** y **Consultas**, pero **no** **Configuración**.
+
+![Tablero de estadísticas del panel](img/captura-v3-tablero.png)
 
 ## 8.2 MCP y skill en Claude Code (Entregable 2)
 
@@ -508,6 +534,9 @@ claude
 | `error: remote origin already exists` | Ya conectaste el repositorio antes | `git remote remove origin` y repite 5.4 |
 | El reporte diario falla con 401 | Secret key incorrecta en GitHub | Edita `SUPABASE_SERVICE_ROLE_KEY` y vuelve a ejecutar |
 | `/mcp` no muestra `supabase` | Falta el project ref | Repite 8.2 en la misma terminal y reinicia Claude Code |
+| “Permite el acceso a la cámara…” en Recepción | El navegador bloqueó la cámara | Ícono de candado junto a la dirección → **Cámara: Permitir** y recarga. La cámara solo funciona en `https://` o en `localhost` |
+| `npm run dev` dice *“Cannot find package 'vite'”* | Faltan las librerías | Ejecuta `npm install` (paso 4.5) |
+| El formulario no muestra anfitriones | No hay anfitriones activos | Agrégalos en **Configuración → Anfitriones** (paso 7.4) |
 
 # Glosario rápido
 

@@ -8,8 +8,9 @@ Sistema para que los visitantes de HIXSA registren su visita en línea, reciban 
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | HTML, CSS y JavaScript (vanilla) en Cloudflare Pages |
-| Base de datos y autenticación | Supabase (PostgreSQL + RLS + Auth) |
+| Formulario público | HTML, CSS y JavaScript (vanilla) en Cloudflare Pages |
+| Panel interno | React 18 + Vite, en Cloudflare Pages (`/admin/`) |
+| Base de datos, autenticación y archivos | Supabase (PostgreSQL + RLS + Auth + Storage privado) |
 | Backend | Supabase Edge Functions (Deno / TypeScript) |
 | Correo | Resend |
 | IA | API de Claude (reporte diario) |
@@ -18,12 +19,13 @@ Sistema para que los visitantes de HIXSA registren su visita en línea, reciban 
 
 ## Funciones principales
 
-- **Registro público** (`index.html`): datos del visitante, correo obligatorio, **fecha y hora de entrada y salida**, aceptación del aviso de privacidad.
+- **Registro público** (`index.html`): datos del visitante, correo obligatorio, **anfitrión** del directorio, **tipo y foto de identificación**, **fecha y hora de entrada y salida**, aceptación del aviso de privacidad.
 - **Pase QR por correo**: se genera con el folio y una huella de los datos y el horario registrados. También se muestra en pantalla para descargarlo.
-- **Panel interno** (`admin.html`), requiere inicio de sesión:
-  - **Consultas**: filtros por periodo, empresa, motivo y texto; estado de cada visita; descarga CSV; **envío del reporte por correo**.
-  - **Configuración** (solo administrador): alta de usuarios de consulta, roles, activación, contraseñas temporales, correos de recepción y destinatarios.
-  - **Validación de pase**: al escanear el QR, el personal ve si el pase es válido y si está dentro de horario.
+- **Panel interno en React** (`/admin/`), requiere inicio de sesión:
+  - **Recepción**: **lector de QR con la cámara**, ficha con foto de la identificación, **registro de llegada (avisa al anfitrión por correo) y de salida reales**, y lista de visitas de hoy.
+  - **Tablero**: asistencia, visitas en sitio, duración real, visitas por día, hora de llegada, motivos, anfitriones y empresas.
+  - **Consultas**: filtros, estado real de cada visita, ficha, descarga CSV y **envío del reporte por correo**.
+  - **Configuración** (solo administrador): usuarios y roles, **directorio de anfitriones**, correos y avisos, bitácora.
 - **Reporte diario automático** (lunes a viernes, 07:00): indicadores del día anterior, resumen con IA y agenda del día.
 
 ## Estructura del proyecto
@@ -32,21 +34,25 @@ Sistema para que los visitantes de HIXSA registren su visita en línea, reciban 
 hixsa-registro-visitantes/
 ├── public/                         ← sitio publicado en Cloudflare Pages
 │   ├── index.html · app.js         ← formulario público
-│   ├── admin.html · admin.js       ← panel interno
-│   ├── styles.css · admin.css      ← diseño (paleta HIXSA en :root)
-│   ├── _headers                    ← cabeceras de seguridad
-│   └── config.js                   ← se genera con npm run build (no se versiona)
+│   ├── styles.css                  ← diseño (paleta HIXSA en :root)
+│   ├── admin.html                  ← redirige al panel (pases antiguos)
+│   └── _headers                    ← cabeceras de seguridad
+├── panel/                          ← panel interno en React + Vite
+│   └── src/components/             ← Recepción, Escáner, Tablero, Consultas, Configuración
+├── dist/                           ← resultado de npm run build (no se versiona)
 ├── supabase/
 │   ├── schema.sql                  ← tablas, validaciones y RLS
 │   ├── crear-admin.sql             ← primer administrador
 │   ├── config.toml                 ← configuración de Edge Functions
 │   └── functions/
-│       ├── registrar-visita/       ← guarda, genera QR y envía el pase
+│       ├── registrar-visita/       ← guarda, sube la foto, genera QR y envía el pase
+│       ├── registrar-acceso/       ← llegada (aviso al anfitrión) y salida reales
 │       ├── admin-usuarios/         ← alta y gestión de usuarios
 │       ├── enviar-reporte/         ← reporte CSV por correo
 │       └── _shared/                ← utilidades comunes
 ├── scripts/
-│   ├── build-config.js             ← genera public/config.js
+│   ├── build.mjs                   ← arma dist/ (formulario + panel)
+│   ├── build-config.cjs            ← genera config.js
 │   └── reporte-diario.mjs          ← automatización con API de Claude
 ├── .github/workflows/
 │   ├── ci.yml                      ← verificación en cada push
@@ -146,13 +152,14 @@ Despliega las tres funciones:
 
 ```bash
 npx supabase functions deploy registrar-visita --no-verify-jwt
+npx supabase functions deploy registrar-acceso --no-verify-jwt
 npx supabase functions deploy admin-usuarios --no-verify-jwt
 npx supabase functions deploy enviar-reporte --no-verify-jwt
 ```
 
 > `--no-verify-jwt` es correcto: `registrar-visita` es pública y las otras dos verifican la sesión y el rol dentro del código.
 
-Verifica en **Supabase → Edge Functions** que aparezcan las tres.
+Verifica en **Supabase → Edge Functions** que aparezcan las cuatro.
 
 ## Parte 4. Probar en tu computadora
 
@@ -168,11 +175,12 @@ SUPABASE_ANON_KEY=sb_publishable_xxxxxxxx
 ```
 
 ```bash
+npm install
 npm run dev
 ```
 
 1. Abre <http://localhost:3000>, registra una visita con **tu correo** y revisa que llegue el pase.
-2. Abre <http://localhost:3000/admin.html>, entra con el administrador y revisa la visita en **Consultas**.
+2. Abre <http://localhost:3000/admin/>, entra con el administrador y revisa la visita en **Consultas**.
 3. En **Configuración**, agrega un usuario de consulta y guarda los correos de recepción y destinatarios.
 
 ## Parte 5. Git y GitHub
@@ -213,10 +221,10 @@ git push
 |---|---|
 | Framework preset | `None` |
 | Build command | `npm run build` |
-| Build output directory | `public` |
+| Build output directory | `dist` |
 
 4. En **Environment variables** agrega `SUPABASE_URL`, `SUPABASE_ANON_KEY` (la pública) y `NODE_VERSION` = `20`.
-5. **Save and Deploy**. Tu sitio queda en `https://NOMBRE.pages.dev` y el panel en `https://NOMBRE.pages.dev/admin.html`.
+5. **Save and Deploy**. Tu sitio queda en `https://NOMBRE.pages.dev` y el panel en `https://NOMBRE.pages.dev/admin/`.
 6. Si el nombre final es distinto al que pusiste en `PUBLIC_SITE_URL` y `ALLOWED_ORIGIN`, actualiza esos secretos (Parte 3) y vuelve a desplegar las funciones.
 
 ## Parte 7. Reporte diario automático (GitHub Actions)

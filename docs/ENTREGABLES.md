@@ -2,7 +2,7 @@
 
 **Proyecto integrador:** Registro de visitas HIXSA
 **Área beneficiada:** Recepción y Seguridad (con reportes para Dirección)
-**Versión:** 2.0.0, octubre 2026
+**Versión:** 3.0.0, noviembre 2026
 
 | Entregable | Dónde está | Estado |
 |---|---|---|
@@ -19,6 +19,8 @@
 | ![Formulario](img/captura-form.png) | ![Pase](img/captura-pase.png) |
 | **Panel: Consultas** | **Panel: Configuración** |
 | ![Consultas](img/captura-consultas.png) | ![Configuración](img/captura-config.png) |
+| **v3: Recepción con identificación** | **v3: Tablero** |
+| ![Recepción](img/captura-v3-ficha.png) | ![Tablero](img/captura-v3-tablero.png) |
 
 Validación del pase en celular: `img/captura-validacion.png`. Diagramas en PNG: `img/modelo-datos.png`, `img/arquitectura.png`, `img/flujo-visitante.png`.
 
@@ -46,6 +48,12 @@ Un repositorio Git publicado en GitHub cuyo historial muestra la evolución del 
 | 10 | Documentación | Tabla del historial de cambios en ENTREGABLES |
 | 11 | Documentación | Diagramas y capturas como evidencia; plurales en el reporte de respaldo |
 | 12 | Documentación | Presentación para Dirección e historial completo |
+| 13 | Documentación | Guía de despliegue para principiantes con ilustraciones |
+| 14 | Funcionalidad (db) | Modelo v3 con anfitriones, identificación con foto y llegada/salida reales |
+| 15 | Funcionalidad (api) | Identificación con foto, anfitrión y registro de llegada/salida |
+| 16 | Funcionalidad (web) | Anfitrión del directorio e identificación con foto en el formulario |
+| 17 | Funcionalidad (panel) | Panel migrado a React con Recepción, Tablero, lector de QR y anfitriones |
+| 18 | Documentación | Documentación de la versión 3 (guía, README, entregables y changelog) |
 
 Cada commit incluye un cuerpo con el detalle de los cambios (`git show <commit>`).
 
@@ -191,6 +199,7 @@ En GitHub: **Actions → Reporte diario de visitas → Run workflow**. Evidencia
 ```mermaid
 erDiagram
     AUTH_USERS ||--o| PERFILES : "tiene"
+    ANFITRIONES ||--o{ VISITANTES : "recibe"
     PERFILES ||--o{ BITACORA_REPORTES : "envía"
     PERFILES ||--o{ CONFIGURACION : "actualiza"
     VISITANTES {
@@ -201,14 +210,26 @@ erDiagram
         text correo
         text telefono
         text persona_visita
+        uuid anfitrion_id FK
+        text tipo_identificacion "INE, Licencia, Pasaporte..."
+        text identificacion_path "bucket privado"
         text motivo "lista cerrada"
         text comentarios
         timestamptz entrada
         timestamptz salida "mayor a entrada, máx. 7 días"
         boolean acepta_aviso "siempre true"
+        timestamptz llegada_at "llegada real"
+        timestamptz salida_real_at "salida real"
         timestamptz qr_enviado_at
         text correo_error
         timestamptz created_at
+    }
+    ANFITRIONES {
+        uuid id PK
+        text nombre
+        text area
+        text correo "solo personal interno"
+        boolean activo
     }
     PERFILES {
         uuid id PK "= auth.users.id"
@@ -241,6 +262,8 @@ erDiagram
 | `perfiles` | Sin acceso | Su propio perfil | Leer todos | Crear y modificar |
 | `configuracion` | Sin acceso | Leer | Leer y modificar | Leer |
 | `bitacora_reportes` | Sin acceso | Sin acceso | Leer | Insertar |
+| `anfitriones` | Nombre y área de activos | Leer | Leer, agregar y editar | Leer |
+| Fotos (`identificaciones`) | Sin acceso | Ver con liga de 5 min | Ver con liga de 5 min | Subir |
 
 Todas las reglas se probaron en PostgreSQL con cada rol: el público no puede leer ni escribir, un usuario inactivo no ve nada, un usuario de consulta no puede modificar la configuración ni los perfiles, y nadie puede borrar visitas.
 
@@ -249,10 +272,12 @@ Todas las reglas se probaron en PostgreSQL con cada rol: el público no puede le
 ```mermaid
 flowchart LR
     V[Visitante<br>celular] -->|formulario| CF[Cloudflare Pages<br>index.html]
-    P[Personal HIXSA] -->|inicio de sesión| ADM[Cloudflare Pages<br>admin.html]
+    P[Personal HIXSA] -->|inicio de sesión<br>cámara QR| ADM[Cloudflare Pages<br>panel React /admin/]
     CF -->|registrar-visita| EF[Supabase<br>Edge Functions]
     ADM -->|Auth + consultas RLS| DB[(Supabase<br>PostgreSQL)]
-    ADM -->|admin-usuarios<br>enviar-reporte| EF
+    ADM -->|registrar-acceso<br>admin-usuarios<br>enviar-reporte| EF
+    EF -->|foto de identificación| ST[(Supabase Storage<br>privado)]
+    ADM -->|liga firmada 5 min| ST
     EF --> DB
     EF -->|pase QR / CSV| RS[Resend<br>correo]
     GA[GitHub Actions<br>07:00 L-V] -->|API REST| DB
@@ -273,16 +298,19 @@ sequenceDiagram
     actor RC as Recepción
     V->>W: Llena datos y horario
     W->>F: Envía registro
-    F->>F: Valida datos y horario
-    F->>D: Guarda visita (folio)
+    F->>F: Valida datos, horario y foto
+    F->>D: Sube foto (privada) y guarda visita
     F->>F: Genera QR (folio + huella SHA-256)
     F->>R: Envía pase por correo
     F-->>W: Folio y QR
     W-->>V: Muestra pase para descargar
     V->>RC: Muestra el QR al llegar
-    RC->>W: Escanea: admin.html?pase=folio&h=huella
+    RC->>W: Escanea con la cámara del panel
     W->>D: Busca folio y recalcula huella
-    W-->>RC: Pase válido / fuera de horario / no coincide
+    W-->>RC: Pase válido + foto de identificación
+    RC->>F: Registrar llegada (registrar-acceso)
+    F->>R: Aviso al anfitrión
+    RC->>F: Registrar salida al terminar
 ```
 
 **Por qué el QR es verificable.** El QR contiene una liga al panel con el folio y una huella de 12 caracteres calculada con SHA-256 sobre folio, correo, entrada y salida. Al escanearlo, el panel (con sesión iniciada) busca el folio y recalcula la huella: si alguien altera el horario o el pase pertenece a otro registro, la huella no coincide. El QR no expone datos personales.
@@ -299,6 +327,8 @@ El proyecto se construyó por iteraciones con Claude Code, una funcionalidad por
 | 4 | Script diario con la API de Claude para el área de Recepción | `reporte-diario.mjs` + GitHub Actions |
 | 5 | Conectar Supabase por MCP y crear skill de reporte semanal | `.mcp.json` + skill |
 | 6 | Documentación de entregables y presentación | `docs/`, PPT |
+| 7 | Guía de despliegue para principiantes | `docs/GUIA_DESPLIEGUE.md` + PDF |
+| 8 | Iteración 2: aviso al anfitrión, tablero, salida real, lector QR, foto de identificación y panel en React | Versión 3.0.0 |
 
 Prácticas que hicieron confiable el resultado:
 
@@ -329,11 +359,28 @@ Prácticas que hicieron confiable el resultado:
 
 Pasos detallados en `README.md`, Partes 1 a 8.
 
-### 4.7 Limitaciones y siguientes pasos
+### 4.7 Iteración 2 (versión 3.0.0)
+
+Segunda vuelta del ciclo completo, a partir de la retroalimentación sobre la versión 2:
+
+| Necesidad | Solución | Dónde |
+|---|---|---|
+| Que el anfitrión sepa que llegó su visita | Directorio de anfitriones y correo automático al registrar la llegada | `anfitriones`, `registrar-acceso` |
+| Saber quién llegó y a qué hora salió | Llegada y salida **reales** al escanear el QR | Pestaña Recepción |
+| Validar el pase sin otro celular | **Lector de QR** con la cámara dentro del panel (jsQR) | `Escaner.jsx` |
+| Confirmar la identidad | Tipo y **foto de identificación** en el registro, en bucket privado | `registrar-visita`, Storage |
+| Información para decidir | **Tablero**: asistencia, en sitio, duración real, horas pico, motivos, anfitriones, empresas | `Tablero.jsx` |
+| Un panel más fácil de mantener y crecer | Migración a **React 18 + Vite** | `panel/` |
+
+Pruebas de esta iteración: permisos v3 por rol en PostgreSQL (el público ve nombre y área de anfitriones pero no su correo ni las fotos; solo el admin edita anfitriones), migración desde v2, tipos de las 4 Edge Functions, compresión de la foto en el navegador (de 3000 px a 1600 px), y el panel React en navegador con API simulada: el **escáner leyó un QR real desde la cámara**, validó la huella, mostró la foto y registró la llegada; además se probó la redirección de los pases antiguos y las vistas móviles.
+
+**Privacidad de la identificación.** Es un dato personal sensible: se guarda en un bucket privado, solo el personal activo la ve con ligas que caducan en 5 minutos, nunca se envía por correo ni a la IA, y el aviso de privacidad debe mencionar su recolección (pendiente de validar con el área legal).
+
+### 4.8 Limitaciones y siguientes pasos
 
 - **Dominio de correo:** para enviar pases a cualquier visitante hay que verificar `hixsa.com` (o un subdominio) en Resend.
-- **Registro de salida real:** hoy se guarda la salida programada; un siguiente paso es marcar la salida real al escanear el QR de nuevo.
-- **Escaneo en recepción:** se usa la cámara del celular; podría agregarse un lector dentro del panel.
+- **Retención de fotos:** programar el borrado automático de identificaciones después del plazo que defina el área legal.
+- **Formulario público:** sigue en JavaScript sin framework; si crece, puede integrarse al proyecto de React.
 - **Retención de datos:** definir con el área legal cuánto tiempo se conservan los registros y programar su depuración.
 
 ---
@@ -341,8 +388,8 @@ Pasos detallados en `README.md`, Partes 1 a 8.
 ## Demo en vivo (5 minutos dentro de la presentación)
 
 1. **Visitante (celular):** abrir el sitio, registrar una visita para dentro de una hora, mostrar el pase en pantalla y el correo recibido.
-2. **Recepción:** escanear el QR con otro celular → iniciar sesión → “Pase válido”.
-3. **Consultas:** filtrar “Hoy”, mostrar la visita, descargar CSV y enviar el reporte por correo.
+2. **Recepción:** pestaña Recepción → Abrir cámara → escanear → “Pase válido” → ver identificación → Registrar llegada (llega el aviso al anfitrión).
+3. **Tablero y Consultas:** mostrar las gráficas; filtrar “Hoy”, descargar CSV y enviar el reporte por correo.
 4. **Configuración:** dar de alta un usuario de consulta y mostrar la contraseña temporal.
 5. **Automatización:** mostrar en GitHub Actions la ejecución del reporte diario y el correo con el resumen de Claude.
 6. **Claude Code:** `/mcp` conectado y *“Genera el reporte semanal de visitas”*.

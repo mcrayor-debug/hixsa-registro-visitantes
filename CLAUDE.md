@@ -5,11 +5,13 @@ panel interno con consultas, reportes y administración de usuarios, y reporte d
 
 ## Arquitectura
 
-- `public/`: sitio estático en Cloudflare Pages (HTML + CSS + JS vanilla, sin framework).
-  - `index.html` + `app.js`: formulario público. Llama a la Edge Function `registrar-visita`.
-  - `admin.html` + `admin.js`: panel con Supabase Auth. Pestañas Consultas y Configuración (solo admin).
+- `public/`: formulario público (HTML + CSS + JS vanilla). Llama a la Edge Function `registrar-visita`.
+  `admin.html` solo redirige a `/admin/` (los QR antiguos apuntan ahí).
+- `panel/`: panel interno en **React 18 + Vite** (`/admin/`). Pestañas Recepción (lector QR con jsQR),
+  Tablero (Recharts), Consultas y Configuración (solo admin). Lee `window.HIXSA_CONFIG` de `/config.js`.
+- `npm run build` → `dist/` (copia `public/`, genera `dist/config.js` y compila el panel en `dist/admin/`).
 - `supabase/schema.sql`: modelo de datos y RLS (idempotente). `crear-admin.sql`: primer administrador.
-- `supabase/functions/`: Edge Functions en Deno (`registrar-visita`, `admin-usuarios`, `enviar-reporte`).
+- `supabase/functions/`: Edge Functions en Deno (`registrar-visita`, `registrar-acceso`, `admin-usuarios`, `enviar-reporte`).
 - `scripts/reporte-diario.mjs`: automatización con API de Supabase + API de Claude (GitHub Actions).
 - `.mcp.json`: servidor MCP de Supabase en solo lectura. `.claude/skills/reporte-visitas`: reporte semanal.
 
@@ -20,6 +22,9 @@ panel interno con consultas, reportes y administración de usuarios, y reporte d
 - Toda salida de datos de usuario en el DOM se hace con `textContent` (helper `el()` en admin.js), nunca `innerHTML`.
 - A la API de Claude solo se envían cifras agregadas, nunca nombres, correos ni teléfonos.
 - El MCP de Supabase se usa en modo `read_only=true`.
+- Las fotos de identificación viven en el bucket **privado** `identificaciones`. Solo se muestran con
+  `createSignedUrl` de 5 minutos; nunca se envían por correo ni a la IA.
+- El formulario público solo puede leer `id, nombre, area` de anfitriones activos (nunca el correo).
 
 ## Convenciones
 
@@ -32,12 +37,12 @@ panel interno con consultas, reportes y administración de usuarios, y reporte d
 1. `schema.sql`: columna + `check`.
 2. `registrar-visita/index.ts`: validación y `datos`.
 3. `public/index.html` + `app.js`: campo, regla y `body`.
-4. `admin.js`: columna de la tabla y del CSV; `enviar-reporte`: `COLUMNAS`.
+4. `panel/src/lib/supabase.js` (`CAMPOS_VISITA`), `formato.js` (CSV) y la ficha; `enviar-reporte`: `COLUMNAS`.
 
 ## Verificación local
 
 ```bash
-npm run dev                      # sitio en http://localhost:3000
+npm install && npm run dev       # formulario en http://localhost:3000 y panel en /admin/
 npm run reporte:demo             # reporte diario con datos de ejemplo
 cd supabase/functions && DENO_NO_PACKAGE_JSON=1 deno check */index.ts
 ```
