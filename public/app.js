@@ -7,6 +7,8 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const TZ = 'America/Mexico_City';
 const OFFSET = '-06:00'; // CDMX no usa horario de verano desde 2022
 const RESET_SECONDS = 90;
+const OTRO = '__otro';
+const MAX_LADO_FOTO = 1600; // px; la foto se reduce en el teléfono antes de enviarla
 
 // ---------- Conexión ----------
 const cfg = window.HIXSA_CONFIG ?? {};
@@ -23,6 +25,85 @@ const statusBox = $('#estado');
 const submitBtn = $('#enviar');
 const successBox = $('#exito');
 const comentarios = $('#comentarios');
+
+// ---------- Anfitriones (directorio público: solo nombre y área) ----------
+const selAnfitrion = $('#anfitrion');
+const txtPersona = $('#persona_visita');
+
+async function cargarAnfitriones() {
+  let lista = [];
+  if (supabase) {
+    const { data } = await supabase.from('anfitriones').select('id, nombre, area').order('nombre');
+    lista = data ?? [];
+  }
+  const opciones = [new Option(lista.length ? 'Elige a la persona' : 'Escribe a quién visitas', '')];
+  lista.forEach((a) => opciones.push(new Option(a.area ? `${a.nombre} (${a.area})` : a.nombre, a.id)));
+  opciones.push(new Option('Otra persona o área', OTRO));
+  selAnfitrion.replaceChildren(...opciones);
+  if (!lista.length) { selAnfitrion.value = OTRO; mostrarOtraPersona(); }
+}
+function mostrarOtraPersona() {
+  const otro = selAnfitrion.value === OTRO;
+  txtPersona.hidden = !otro;
+  if (otro) txtPersona.focus({ preventScroll: true });
+}
+selAnfitrion.addEventListener('change', () => { mostrarOtraPersona(); validateField('persona_visita'); });
+
+// ---------- Foto de identificación ----------
+let fotoDataUrl = null;
+const inputFoto = $('#foto_identificacion');
+
+/** Reduce la foto a máx. 1600 px y la convierte a JPEG para enviarla ligera. */
+function comprimir(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) return reject(new Error('tipo'));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, MAX_LADO_FOTO / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * escala);
+      c.height = Math.round(img.naturalHeight * escala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('lectura')); };
+    img.src = url;
+  });
+}
+
+inputFoto.addEventListener('change', async () => {
+  const file = inputFoto.files?.[0];
+  if (!file) return;
+  try {
+    fotoDataUrl = await comprimir(file);
+    $('#foto-preview').src = fotoDataUrl;
+    $('#foto-preview').hidden = false;
+    $('#foto-vacia').hidden = true;
+    $('#foto-boton').textContent = 'Cambiar foto';
+    setError('foto_identificacion', '');
+  } catch {
+    fotoDataUrl = null;
+    setError('foto_identificacion', 'No pudimos leer esa imagen. Toma la foto de nuevo.');
+  }
+  inputFoto.value = '';
+});
+
+function limpiarFoto() {
+  fotoDataUrl = null;
+  $('#foto-preview').hidden = true;
+  $('#foto-preview').removeAttribute('src');
+  $('#foto-vacia').hidden = false;
+  $('#foto-boton').textContent = 'Tomar foto';
+}
+
+form.addEventListener('change', (e) => {
+  if (e.target.name === 'tipo_identificacion') {
+    $('#detalle-field').hidden = e.target.value !== 'Otro';
+    if (e.target.value !== 'Otro') setError('identificacion_detalle', '');
+  }
+});
 
 // ---------- Fechas ----------
 const timeFmt = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ });
@@ -121,7 +202,15 @@ const rules = {
     if (ent && sal - ent > 7 * 864e5) return 'La visita puede durar máximo 7 días.';
     return '';
   },
-  persona_visita: (v) => (v.length < 3 ? 'Escribe el nombre de la persona o el área que visitas.' : ''),
+  persona_visita: () => {
+    if (!selAnfitrion.value) return 'Elige a quién visitas.';
+    if (selAnfitrion.value === OTRO && txtPersona.value.trim().length < 3) return 'Escribe el nombre de la persona o el área que visitas.';
+    return '';
+  },
+  tipo_identificacion: (v) => (v ? '' : 'Elige el tipo de identificación.'),
+  identificacion_detalle: () => (form.elements.tipo_identificacion.value === 'Otro' && form.elements.identificacion_detalle.value.trim().length < 2
+    ? 'Escribe qué identificación es.' : ''),
+  foto_identificacion: () => (fotoDataUrl ? '' : 'Toma o adjunta la foto de tu identificación.'),
   motivo: (v) => (v ? '' : 'Elige el motivo de tu visita.'),
   comentarios: (v) => (v.length > 500 ? 'Los comentarios admiten hasta 500 caracteres.' : ''),
   acepta_aviso: (v) => (v ? '' : 'Para registrarte, acepta el aviso de privacidad.'),
@@ -133,7 +222,7 @@ const COMPUESTOS = {
 };
 
 function getValue(name) {
-  if (COMPUESTOS[name]) return '';
+  if (COMPUESTOS[name] || name === 'persona_visita' || name === 'foto_identificacion') return '';
   const el = form.elements[name];
   if (el instanceof RadioNodeList) return el.value;
   if (el.type === 'checkbox') return el.checked;
@@ -142,6 +231,9 @@ function getValue(name) {
 
 function targetsFor(name) {
   if (name === 'motivo') return [$('#motivo-group')];
+  if (name === 'tipo_identificacion') return [$('#tipo_identificacion-group')];
+  if (name === 'foto_identificacion') return [$('#foto-box')];
+  if (name === 'persona_visita') return [selAnfitrion, txtPersona];
   return COMPUESTOS[name] ?? [form.elements[name]];
 }
 
@@ -158,7 +250,10 @@ function validateField(name) {
 }
 
 function focusField(name) {
-  const el = name === 'motivo' ? form.querySelector('input[name="motivo"]') : targetsFor(name)[0];
+  const el = name === 'motivo' || name === 'tipo_identificacion' ? form.querySelector(`input[name="${name}"]`)
+    : name === 'foto_identificacion' ? $('#foto-box')
+      : name === 'persona_visita' && selAnfitrion.value === OTRO ? txtPersona : targetsFor(name)[0];
+  if (name === 'foto_identificacion') { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   el.focus({ preventScroll: true });
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -171,7 +266,7 @@ const campoDe = (el) => {
 
 form.addEventListener('focusout', (e) => {
   const name = campoDe(e.target);
-  if (!rules[name] || e.target.type === 'radio' || e.target.type === 'checkbox') return;
+  if (!rules[name] || e.target.type === 'radio' || e.target.type === 'checkbox' || e.target.type === 'file') return;
   if (COMPUESTOS[name] || e.target.value.trim() !== '') validateField(name);
 });
 form.addEventListener('input', (e) => {
@@ -180,7 +275,7 @@ form.addEventListener('input', (e) => {
 });
 form.addEventListener('change', (e) => {
   const name = campoDe(e.target);
-  if (name === 'motivo' || name === 'acepta_aviso') validateField(name);
+  if (name === 'motivo' || name === 'acepta_aviso' || name === 'tipo_identificacion') validateField(name);
   if (COMPUESTOS[name]) { validateField('entrada'); validateField('salida'); }
 });
 
@@ -244,6 +339,9 @@ function resetForm() {
   clearStatus();
   $('#comentarios-count').textContent = '0 / 500';
   horarioPorDefecto();
+  limpiarFoto();
+  $('#detalle-field').hidden = true;
+  txtPersona.hidden = selAnfitrion.value !== OTRO;
   successBox.hidden = true;
   form.hidden = false;
   window.scrollTo({ top: 0 });
@@ -293,7 +391,11 @@ form.addEventListener('submit', async (e) => {
     empresa: getValue('empresa'),
     correo,
     telefono: getValue('telefono'),
-    persona_visita: getValue('persona_visita'),
+    anfitrion_id: selAnfitrion.value && selAnfitrion.value !== OTRO ? selAnfitrion.value : null,
+    persona_visita: selAnfitrion.value === OTRO ? txtPersona.value.trim() : selAnfitrion.selectedOptions[0].text,
+    tipo_identificacion: form.elements.tipo_identificacion.value,
+    identificacion_detalle: form.elements.tipo_identificacion.value === 'Otro' ? form.elements.identificacion_detalle.value.trim() : null,
+    foto_identificacion: fotoDataUrl,
     motivo: getValue('motivo'),
     comentarios: getValue('comentarios') || null,
     entrada: aInstante(els.fe.value, els.he.value).toISOString(),
@@ -325,3 +427,4 @@ form.addEventListener('submit', async (e) => {
 });
 
 horarioPorDefecto();
+cargarAnfitriones();

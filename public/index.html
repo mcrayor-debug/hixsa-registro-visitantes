@@ -90,6 +90,42 @@
           </fieldset>
 
           <fieldset>
+            <legend>Identificación</legend>
+            <p class="hint fieldset-hint">La revisa el personal de recepción. Se guarda de forma privada.</p>
+
+            <fieldset class="field" id="tipo_identificacion-group" aria-describedby="tipo_identificacion-error">
+              <legend class="label">Tipo de identificación</legend>
+              <div class="chips">
+                <label class="chip"><input type="radio" name="tipo_identificacion" value="INE" required><span>INE</span></label>
+                <label class="chip"><input type="radio" name="tipo_identificacion" value="Licencia"><span>Licencia</span></label>
+                <label class="chip"><input type="radio" name="tipo_identificacion" value="Pasaporte"><span>Pasaporte</span></label>
+                <label class="chip"><input type="radio" name="tipo_identificacion" value="ID empresa"><span>ID de empresa</span></label>
+                <label class="chip"><input type="radio" name="tipo_identificacion" value="Otro"><span>Otro</span></label>
+              </div>
+              <p class="error" id="tipo_identificacion-error" aria-live="polite"></p>
+            </fieldset>
+
+            <div class="field" id="detalle-field" hidden>
+              <label for="identificacion_detalle">¿Qué identificación es?</label>
+              <input id="identificacion_detalle" name="identificacion_detalle" type="text" maxlength="60"
+                     placeholder="Por ejemplo: cédula profesional" aria-describedby="identificacion_detalle-error">
+              <p class="error" id="identificacion_detalle-error" aria-live="polite"></p>
+            </div>
+
+            <div class="field">
+              <span class="label" id="foto-label">Foto de la identificación</span>
+              <div class="foto-box" id="foto-box" aria-describedby="foto_identificacion-error">
+                <img id="foto-preview" alt="Vista previa de tu identificación" hidden>
+                <p class="foto-vacia" id="foto-vacia">Toma la foto de frente, con buena luz y sin reflejos.</p>
+                <label class="btn btn-secondary btn-foto" for="foto_identificacion" id="foto-boton">Tomar foto</label>
+                <input id="foto_identificacion" name="foto_identificacion" type="file" accept="image/*" capture="environment"
+                       class="sr-only" aria-labelledby="foto-label foto-boton">
+              </div>
+              <p class="error" id="foto_identificacion-error" aria-live="polite"></p>
+            </div>
+          </fieldset>
+
+          <fieldset>
             <legend>Horario de la visita</legend>
             <p class="hint fieldset-hint">Hora del centro de México.</p>
 
@@ -122,9 +158,13 @@
             <legend>Tu visita</legend>
 
             <div class="field">
-              <label for="persona_visita">¿A quién visitas?</label>
-              <input id="persona_visita" name="persona_visita" type="text" maxlength="120"
-                     placeholder="Nombre de la persona o área" required aria-describedby="persona_visita-error">
+              <label for="anfitrion">¿A quién visitas?</label>
+              <select id="anfitrion" name="anfitrion" required aria-describedby="persona_visita-error">
+                <option value="">Cargando lista…</option>
+              </select>
+              <input id="persona_visita" name="persona_visita" type="text" maxlength="120" hidden
+                     placeholder="Nombre de la persona o área" aria-label="Nombre de la persona o área que visitas"
+                     aria-describedby="persona_visita-error">
               <p class="error" id="persona_visita-error" aria-live="polite"></p>
             </div>
 
