@@ -20,12 +20,15 @@ jobs:
         with:
           node-version: 20
 
-      - name: Sintaxis del frontend y scripts
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Sintaxis del formulario y scripts
         run: |
           for f in public/*.js scripts/*.mjs; do cp "$f" /tmp/check.mjs; node --check /tmp/check.mjs && echo "✔ $f"; done
-          node --check scripts/build-config.js
+          node --check scripts/build-config.cjs
 
-      - name: Build de prueba
+      - name: Build de prueba (formulario + panel React)
         env:
           SUPABASE_URL: https://ejemplo.supabase.co
           SUPABASE_ANON_KEY: sb_publishable_ejemplo
@@ -42,4 +45,4 @@ jobs:
         working-directory: supabase/functions
         env:
           DENO_NO_PACKAGE_JSON: "1"
-        run: deno check registrar-visita/index.ts admin-usuarios/index.ts enviar-reporte/index.ts
+        run: deno check registrar-visita/index.ts registrar-acceso/index.ts admin-usuarios/index.ts enviar-reporte/index.ts

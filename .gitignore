@@ -11,3 +11,6 @@ Thumbs.db
 
 # Vistas previas del reporte diario
 reportes/
+
+# Build
+dist/

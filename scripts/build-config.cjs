@@ -27,10 +27,12 @@ if (/service_role|sb_secret_/.test(SUPABASE_ANON_KEY)) {
   process.exit(1);
 }
 
-const out = path.join(root, 'public', 'config.js');
+// Destino: argumento --out=carpeta (por defecto public/, para pruebas locales)
+const arg = process.argv.find((a) => a.startsWith('--out='));
+const out = path.join(root, arg ? arg.slice(6) : 'public', 'config.js');
 const content =
   '// Archivo generado por scripts/build-config.js. No editar a mano.\n' +
   `window.HIXSA_CONFIG = ${JSON.stringify({ SUPABASE_URL, SUPABASE_ANON_KEY }, null, 2)};\n`;
 
 fs.writeFileSync(out, content);
-console.log('✔ public/config.js generado para', SUPABASE_URL);
+console.log(`✔ ${path.relative(root, out)} generado para`, SUPABASE_URL);
