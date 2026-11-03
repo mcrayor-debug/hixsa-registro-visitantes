@@ -1,8 +1,8 @@
 -- =====================================================================
--- HIXSA - Registro de visitantes (v2)
+-- HIXSA - Registro de visitantes (v3)
 -- Esquema completo para Supabase (PostgreSQL).
 -- Ejecutar completo en: Supabase > SQL Editor > New query > Run
--- Es idempotente: sirve para instalación nueva y para actualizar la v1.
+-- Es idempotente: sirve para instalación nueva y para actualizar la v1 o la v2.
 -- =====================================================================
 
 -- 0) FOLIO LEGIBLE ------------------------------------------------------
@@ -223,3 +223,109 @@ create policy "Admin consulta bitacora"
 
 -- Nota: anon no tiene ningún permiso. Los registros públicos, el alta de
 -- usuarios y el envío de reportes pasan por Edge Functions con service_role.
+
+-- =====================================================================
+-- v3: anfitriones, identificación con foto, llegada y salida reales
+-- =====================================================================
+
+-- 7) ANFITRIONES (personal que recibe visitas) --------------------------
+create table if not exists public.anfitriones (
+  id         uuid        primary key default gen_random_uuid(),
+  nombre     text        not null,
+  area       text,
+  correo     text,
+  activo     boolean     not null default true,
+  created_at timestamptz not null default now(),
+  constraint anfitriones_nombre_len check (char_length(btrim(nombre)) between 3 and 120),
+  constraint anfitriones_area_len   check (area is null or char_length(area) <= 80),
+  constraint anfitriones_correo_formato check (
+    correo is null or correo ~* '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]{2,}$'
+  )
+);
+
+-- 8) COLUMNAS NUEVAS EN VISITANTES ----------------------------------------
+alter table public.visitantes
+  add column if not exists anfitrion_id          uuid references public.anfitriones (id) on delete set null,
+  add column if not exists tipo_identificacion   text,
+  add column if not exists identificacion_detalle text,
+  add column if not exists identificacion_path   text,
+  add column if not exists llegada_at            timestamptz,
+  add column if not exists llegada_por           uuid references auth.users (id) on delete set null,
+  add column if not exists salida_real_at        timestamptz,
+  add column if not exists salida_por            uuid references auth.users (id) on delete set null,
+  add column if not exists anfitrion_avisado_at  timestamptz;
+
+alter table public.visitantes
+  drop constraint if exists visitantes_tipo_identificacion,
+  drop constraint if exists visitantes_identificacion_detalle,
+  drop constraint if exists visitantes_salida_real;
+
+alter table public.visitantes
+  -- Nulo solo en registros anteriores a la v3
+  add constraint visitantes_tipo_identificacion check (
+    tipo_identificacion is null
+    or tipo_identificacion in ('INE', 'Licencia', 'Pasaporte', 'ID empresa', 'Otro')
+  ),
+  add constraint visitantes_identificacion_detalle check (
+    identificacion_detalle is null or char_length(identificacion_detalle) <= 60
+  ),
+  -- La salida real solo existe después de la llegada real
+  add constraint visitantes_salida_real check (
+    salida_real_at is null or (llegada_at is not null and salida_real_at >= llegada_at)
+  );
+
+create index if not exists visitantes_anfitrion_idx on public.visitantes (anfitrion_id);
+
+comment on column public.visitantes.identificacion_path is
+  'Ruta de la foto en el bucket privado identificaciones. Dato personal sensible.';
+comment on column public.visitantes.llegada_at     is 'Llegada real, registrada al escanear el QR en recepción.';
+comment on column public.visitantes.salida_real_at is 'Salida real, registrada al escanear el QR al salir.';
+
+-- 9) CONFIGURACIÓN: aviso al anfitrión ---------------------------------
+alter table public.configuracion
+  add column if not exists avisar_anfitrion boolean not null default true;
+grant update (avisar_anfitrion) on table public.configuracion to authenticated;
+
+-- 10) RLS DE ANFITRIONES -------------------------------------------------
+alter table public.anfitriones enable row level security;
+revoke all on table public.anfitriones from anon, authenticated;
+
+-- El formulario público solo ve nombre y área de anfitriones activos (nunca el correo)
+grant select (id, nombre, area) on table public.anfitriones to anon;
+drop policy if exists "Publico ve anfitriones activos" on public.anfitriones;
+create policy "Publico ve anfitriones activos"
+  on public.anfitriones for select to anon
+  using (activo);
+
+-- Personal activo ve todo; solo el admin agrega o edita (no se borran: se desactivan)
+grant select on table public.anfitriones to authenticated;
+grant insert (nombre, area, correo, activo), update (nombre, area, correo, activo)
+  on table public.anfitriones to authenticated;
+drop policy if exists "Personal activo ve anfitriones" on public.anfitriones;
+create policy "Personal activo ve anfitriones"
+  on public.anfitriones for select to authenticated
+  using ((select public.es_usuario_activo()));
+drop policy if exists "Admin agrega anfitriones" on public.anfitriones;
+create policy "Admin agrega anfitriones"
+  on public.anfitriones for insert to authenticated
+  with check ((select public.es_admin()));
+drop policy if exists "Admin edita anfitriones" on public.anfitriones;
+create policy "Admin edita anfitriones"
+  on public.anfitriones for update to authenticated
+  using ((select public.es_admin()))
+  with check ((select public.es_admin()));
+
+-- 11) FOTOS DE IDENTIFICACIÓN (Storage privado) -------------------------
+-- Las sube solo la Edge Function registrar-visita. El personal activo las ve
+-- con ligas firmadas que caducan; el público no puede leer ni listar nada.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('identificaciones', 'identificaciones', false, 3145728, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Personal activo ve identificaciones" on storage.objects;
+create policy "Personal activo ve identificaciones"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'identificaciones' and (select public.es_usuario_activo()));
