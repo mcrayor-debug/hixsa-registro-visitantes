@@ -12,6 +12,9 @@ import { EMAIL_RE, enviarCorreo, escapar } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora, huellaPase } from "../_shared/formato.ts";
 
 const MOTIVOS = ["Reunión", "Entrevista", "Proveedor o servicio", "Entrega o paquetería", "Otro"];
+const IDENTIFICACIONES = ["INE", "Licencia", "Pasaporte", "ID empresa", "Otro"];
+const MAX_FOTO_BYTES = 3 * 1024 * 1024;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HORA_MS = 60 * 60 * 1000;
 const AVISO_URL = "https://www.hixsa.com/sobre-nosotros/aviso-de-privacidad/";
 
@@ -26,6 +29,10 @@ interface Entrada {
   entrada?: string;
   salida?: string;
   acepta_aviso?: boolean;
+  anfitrion_id?: string | null;
+  tipo_identificacion?: string;
+  identificacion_detalle?: string | null;
+  foto_identificacion?: string; // data URL (JPEG, PNG o WebP)
   sitio_web?: string; // trampa anti-bots
 }
 
@@ -46,7 +53,15 @@ function validar(b: Entrada) {
   if (empresa.length < 2 || empresa.length > 120) campos.empresa = "Escribe el nombre de tu empresa.";
   if (!EMAIL_RE.test(correo) || correo.length > 254) campos.correo = "Revisa el formato del correo.";
   if (!/^\+?[0-9]{10,15}$/.test(telefono)) campos.telefono = "Escribe un teléfono de 10 a 15 dígitos.";
-  if (persona.length < 3 || persona.length > 120) campos.persona_visita = "Escribe a quién visitas.";
+  const anfitrionId = txt(b.anfitrion_id);
+  if (anfitrionId && !UUID_RE.test(anfitrionId)) campos.persona_visita = "Elige a quién visitas.";
+  if (!anfitrionId && (persona.length < 3 || persona.length > 120)) campos.persona_visita = "Escribe a quién visitas.";
+  const tipoId = txt(b.tipo_identificacion);
+  const detalleId = txt(b.identificacion_detalle) || null;
+  if (!IDENTIFICACIONES.includes(tipoId)) campos.tipo_identificacion = "Elige el tipo de identificación.";
+  if (tipoId === "Otro" && (!detalleId || detalleId.length > 60)) campos.identificacion_detalle = "Escribe qué identificación es.";
+  const foto = leerFoto(String(b.foto_identificacion ?? ""));
+  if (typeof foto === "string") campos.foto_identificacion = foto;
   if (!MOTIVOS.includes(motivo)) campos.motivo = "Elige un motivo válido.";
   if (comentarios && comentarios.length > 500) campos.comentarios = "Máximo 500 caracteres.";
   if (b.acepta_aviso !== true) campos.acepta_aviso = "Debes aceptar el aviso de privacidad.";
@@ -71,13 +86,38 @@ function validar(b: Entrada) {
       correo,
       telefono,
       persona_visita: persona,
+      anfitrion_id: anfitrionId || null,
+      tipo_identificacion: tipoId,
+      identificacion_detalle: tipoId === "Otro" ? detalleId : null,
       motivo,
       comentarios,
       entrada: isNaN(entrada.getTime()) ? null : entrada.toISOString(),
       salida: isNaN(salida.getTime()) ? null : salida.toISOString(),
       acepta_aviso: true,
     },
+    foto: typeof foto === "string" ? null : foto,
   };
+}
+
+/** Valida la foto (data URL): tipo real por sus primeros bytes y tamaño máximo. */
+function leerFoto(dataUrl: string): { bytes: Uint8Array; tipo: string; ext: string } | string {
+  const m = dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return "Toma o adjunta la foto de tu identificación.";
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
+  } catch {
+    return "La foto no se pudo leer. Intenta de nuevo.";
+  }
+  if (bytes.length > MAX_FOTO_BYTES) return "La foto pesa demasiado (máximo 3 MB).";
+  const firma = Array.from(bytes.slice(0, 12));
+  const esJpeg = firma[0] === 0xff && firma[1] === 0xd8 && firma[2] === 0xff;
+  const esPng = firma[0] === 0x89 && firma[1] === 0x50 && firma[2] === 0x4e && firma[3] === 0x47;
+  const esWebp = String.fromCharCode(...firma.slice(0, 4)) === "RIFF" && String.fromCharCode(...firma.slice(8, 12)) === "WEBP";
+  if (esJpeg) return { bytes, tipo: "image/jpeg", ext: "jpg" };
+  if (esPng) return { bytes, tipo: "image/png", ext: "png" };
+  if (esWebp) return { bytes, tipo: "image/webp", ext: "webp" };
+  return "El archivo no es una imagen válida.";
 }
 
 function plantillaCorreo(v: Record<string, string>, folio: string) {
@@ -127,7 +167,7 @@ Deno.serve(async (req) => {
   // Trampa anti-bots: respuesta aparentemente exitosa, sin guardar nada.
   if (body.sitio_web) return json({ ok: true, folio: "HX-000000-00000", correo_enviado: false }, 201);
 
-  const { campos, datos } = validar(body);
+  const { campos, datos, foto } = validar(body);
   if (Object.keys(campos).length) return json({ error: "Revisa los datos marcados.", campos }, 422);
 
   const db = clienteServicio();
@@ -140,13 +180,31 @@ Deno.serve(async (req) => {
     .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
   if ((count ?? 0) >= 5) return json({ error: "Demasiados registros seguidos. Espera unos minutos." }, 429);
 
+  // Anfitrión del directorio: el nombre se toma del servidor, no del navegador
+  if (datos.anfitrion_id) {
+    const { data: anf } = await db.from("anfitriones").select("nombre, area, activo").eq("id", datos.anfitrion_id).maybeSingle();
+    if (!anf || !anf.activo) return json({ error: "Revisa los datos marcados.", campos: { persona_visita: "Elige a quién visitas." } }, 422);
+    datos.persona_visita = anf.area ? `${anf.nombre} (${anf.area})` : anf.nombre;
+  }
+
+  // Foto de identificación al bucket privado (antes de guardar la visita)
+  const mes = new Date().toISOString().slice(0, 7);
+  const rutaFoto = `${mes}/${crypto.randomUUID()}.${foto!.ext}`;
+  const { error: errFoto } = await db.storage.from("identificaciones")
+    .upload(rutaFoto, foto!.bytes, { contentType: foto!.tipo, upsert: false });
+  if (errFoto) {
+    console.error("subida de identificación", errFoto);
+    return json({ error: "No se pudo guardar la foto de tu identificación. Intenta de nuevo." }, 500);
+  }
+
   const { data: visita, error } = await db
     .from("visitantes")
-    .insert(datos)
+    .insert({ ...datos, identificacion_path: rutaFoto })
     .select("id, folio, nombre_completo, empresa, correo, persona_visita, motivo, entrada, salida")
     .single();
   if (error || !visita) {
     console.error("insert visitantes", error);
+    await db.storage.from("identificaciones").remove([rutaFoto]); // no dejar fotos huérfanas
     return json({ error: "No se pudo guardar el registro." }, 500);
   }
 

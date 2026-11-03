@@ -15,8 +15,10 @@ const MAX_FILAS = 5000;
 const COLUMNAS: [string, string][] = [
   ["folio", "Folio"], ["nombre_completo", "Nombre"], ["empresa", "Empresa"], ["correo", "Correo"],
   ["telefono", "Teléfono"], ["persona_visita", "Visita a"], ["motivo", "Motivo"],
-  ["entrada", "Entrada"], ["salida", "Salida"], ["comentarios", "Comentarios"],
+  ["entrada", "Entrada"], ["salida", "Salida"], ["llegada_at", "Llegada real"], ["salida_real_at", "Salida real"],
+  ["tipo_identificacion", "Identificación"], ["comentarios", "Comentarios"],
 ];
+const FECHAS = new Set(["entrada", "salida", "llegada_at", "salida_real_at"]);
 
 function aCsv(filas: Record<string, unknown>[]): string {
   const celda = (v: unknown) => {
@@ -27,7 +29,7 @@ function aCsv(filas: Record<string, unknown>[]): string {
   };
   const encabezado = COLUMNAS.map(([, t]) => celda(t)).join(",");
   const cuerpo = filas.map((f) =>
-    COLUMNAS.map(([k]) => celda(k === "entrada" || k === "salida" ? formatoFechaHora(String(f[k])) : f[k])).join(",")
+    COLUMNAS.map(([k]) => celda(FECHAS.has(k) ? (f[k] ? formatoFechaHora(String(f[k])) : "") : f[k])).join(",")
   );
   return "\uFEFF" + [encabezado, ...cuerpo].join("\r\n");
 }

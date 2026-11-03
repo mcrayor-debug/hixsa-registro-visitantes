@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.enviar-reporte]
 verify_jwt = false
+
+[functions.registrar-acceso]
+verify_jwt = false
