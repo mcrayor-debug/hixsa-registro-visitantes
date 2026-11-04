@@ -30,8 +30,8 @@ jobs:
 
       - name: Build de prueba (formulario + panel React)
         env:
-          SUPABASE_URL: https://ejemplo.supabase.co
-          SUPABASE_ANON_KEY: sb_publishable_ejemplo
+          SUPABASE_URL: https://ziqfcmgufkeydulgtnvl.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_d1FISB2wU-5HvJdUh-kkUA_oB2XiYh_
         run: npm run build
 
       - name: Reporte diario en modo demo
