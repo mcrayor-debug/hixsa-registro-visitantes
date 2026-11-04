@@ -1,0 +1,8 @@
+{
+  // Sitio estático: formulario en /, panel React en /admin/
+  "name": "hixsa-registro-visitantes",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
