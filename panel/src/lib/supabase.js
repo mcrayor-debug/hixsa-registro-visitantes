@@ -22,7 +22,7 @@ export const CAMPOS_VISITA = 'id, folio, nombre_completo, empresa, correo, telef
   + 'entrada, salida, llegada_at, salida_real_at, anfitrion_avisado_at, tipo_identificacion, identificacion_detalle, '
   + 'identificacion_path, qr_enviado_at, correo_error, nombre, apellidos, empresa_visita_id, empresas(nombre), '
   + 'sala_juntas, selfie_path, equipo_tipo, equipo_marca, equipo_serie, estado_aprobacion, aprobacion_por, aprobacion_at, '
-  + 'entrada_fuera_horario, autorizacion_motivo, persona_id, personas(estado_bloqueo, bloqueo_motivo, recurrente), anfitriones(nombre, correo)';
+  + 'entrada_fuera_horario, autorizacion_motivo, persona_id, origen, personas(estado_bloqueo, bloqueo_motivo, recurrente), anfitriones(nombre, correo)';
 
 const limpiar = (s) => (s ?? '').replace(/[,()*%\\]/g, ' ').trim().slice(0, 80);
 

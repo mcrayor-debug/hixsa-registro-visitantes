@@ -33,7 +33,7 @@ const txtPersona = $('#persona_visita');
 /** Llena la lista de anfitriones con los de la empresa elegida. */
 function cargarAnfitriones() {
   const lista = (publico.anfitriones ?? []).filter((a) => !empresaElegida || (a.empresas ?? []).includes(empresaElegida.id));
-  const opciones = [new Option(lista.length ? 'Elige a la persona' : 'Escribe a quién visitas', '')];
+  const opciones = [new Option(lista.length ? 'Elige a la persona' : 'Esta empresa aún no tiene anfitriones: elige “Otra persona o área”', '')];
   lista.forEach((a) => opciones.push(new Option(a.area ? `${a.nombre} (${a.area})` : a.nombre, a.id)));
   opciones.push(new Option('Otra persona o área', OTRO));
   selAnfitrion.replaceChildren(...opciones);

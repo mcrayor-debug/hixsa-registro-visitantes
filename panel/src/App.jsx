@@ -5,6 +5,7 @@ import Login from './components/Login.jsx';
 import Recepcion from './components/Recepcion.jsx';
 import Tablero from './components/Tablero.jsx';
 import Consultas from './components/Consultas.jsx';
+import Reportes from './components/Reportes.jsx';
 import Configuracion from './components/Configuracion.jsx';
 import { Dialogo, Mensaje, useToast } from './components/ui.jsx';
 
@@ -12,6 +13,7 @@ const PESTANAS = [
   { id: 'recepcion', texto: 'Recepción', permitido: (p) => puede(p, 'recepcion') },
   { id: 'tablero', texto: 'Tablero', permitido: (p) => puede(p, 'tablero') },
   { id: 'consultas', texto: 'Consultas', permitido: (p) => puede(p, 'consultas') },
+  { id: 'reportes', texto: 'Reportes', permitido: (p) => puede(p, 'reportes') },
   { id: 'configuracion', texto: 'Configuración', permitido: puedeConfigurar },
 ];
 const LOGO_BLANCO = '/img/logo-hixsa-blanco.png';
@@ -120,6 +122,7 @@ export default function App() {
                   {tab === 'recepcion' && <Recepcion paseInicial={pase} />}
                   {tab === 'tablero' && <Tablero empresas={empresas} auditoria={config?.modo_auditoria} />}
                   {tab === 'consultas' && <Consultas config={config} perfil={perfil} empresas={empresas} />}
+                  {tab === 'reportes' && <Reportes config={config} perfil={perfil} empresas={empresas} />}
                   {tab === 'configuracion' && (
                     <Configuracion perfil={perfil} config={config} empresas={empresas} recargar={recargarContexto} />
                   )}

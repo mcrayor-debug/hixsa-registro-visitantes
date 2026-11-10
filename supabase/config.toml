@@ -23,3 +23,15 @@ verify_jwt = false
 
 [functions.gestionar-visitante]
 verify_jwt = false
+
+[functions.reenviar-pase]
+verify_jwt = false
+
+[functions.reporte-programado]
+verify_jwt = false
+
+[functions.importar-datos]
+verify_jwt = false
+
+[functions.borrar-perfiles]
+verify_jwt = false

@@ -30,12 +30,18 @@ export default function FichaVisita({ folio, h, onCambio }) {
   const [motivo, setMotivo] = useState('');
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const [fuera, setFuera] = useState(null);
   const toast = useToast();
 
   const cargar = useCallback(async () => {
     setCargando(true);
     const { data } = await supabase.from('visitantes').select(CAMPOS_VISITA).eq('folio', folio).maybeSingle();
     setV(data);
+    if (!data) {
+      // Fuera del alcance del rol (p. ej. pase de otro día): el servidor valida y registra el intento
+      try { const r = await invocar('registrar-acceso', { folio, accion: 'consultar' }); setFuera({ visita: r.visita }); }
+      catch (e) { setFuera(e.datos?.visita ? { visita: e.datos.visita, rechazo: e.datos } : null); }
+    } else setFuera(null);
     if (data) {
       const hv = await huella(data);
       setCoincide(h ? hv === h : null);
@@ -78,6 +84,23 @@ export default function FichaVisita({ folio, h, onCambio }) {
   }
 
   if (cargando && !v) return <div className="card ficha"><p className="muted">Buscando {folio}…</p></div>;
+  if (!v && fuera?.visita) {
+    const fv = fuera.visita;
+    return (
+      <div className="card ficha" data-resultado="invalido">
+        <p className="ficha-folio mono">{fv.folio}</p>
+        <h2 className="ficha-titulo">{fv.nombre_completo}</h2>
+        <p className="muted">De: {fv.empresa} · Visita a {fv.empresa_visita}</p>
+        <section className="acceso-denegado">
+          <h3>ACCESO NO PERMITIDO</h3>
+          {fuera.rechazo ? <ul>{fuera.rechazo.problemas.map((x) => <li key={x.codigo}><strong>{x.motivo}.</strong> {x.detalle}</li>)}</ul>
+            : <p>Esta visita no corresponde al día de hoy.</p>}
+          <p className="acceso-sugerencia">{fuera.rechazo?.sugerencia ?? 'Sugiere al visitante hacer un nuevo registro con la fecha correcta.'}</p>
+        </section>
+        <dl className="pase-detalle"><dt>Horario registrado</dt><dd>{fmtLarga.format(new Date(fv.entrada))} a {fmtHora.format(new Date(fv.salida))}</dd></dl>
+      </div>
+    );
+  }
   if (!v) {
     return (
       <div className="card ficha" data-resultado="invalido">
@@ -179,6 +202,13 @@ export default function FichaVisita({ folio, h, onCambio }) {
           <button className="btn" type="button" disabled={ocupado} onClick={() => accion('salida')}>{ocupado ? 'Registrando…' : 'Registrar salida'}</button>
         )}
         {v.salida_real_at && <p className="muted">La visita ya concluyó.</p>}
+        {!v.salida_real_at && new Date(v.salida).getTime() > Date.now() && v.estado_aprobacion !== 'rechazada' && (!v.origen || v.origen === 'formulario') && (
+          <button className="btn btn-secondary" type="button" disabled={ocupado} onClick={async () => {
+            setOcupado(true);
+            try { const r = await invocar('reenviar-pase', { folio }); toast(`Pase reenviado a ${r.correo}.`); await cargar(); }
+            catch (e) { setError(e.message); } finally { setOcupado(false); }
+          }}>Reenviar QR</button>
+        )}
       </div>
 
       {intentos.length > 0 && (

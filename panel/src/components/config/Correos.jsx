@@ -3,15 +3,19 @@ import { supabase } from '../../lib/supabase.js';
 import { EMAIL_RE, listaCorreos } from '../../lib/formato.js';
 import { mensajeError } from '../../lib/archivos.js';
 import { Mensaje, useToast } from '../ui.jsx';
+import { invocar } from '../../lib/supabase.js';
+import { esSuperadmin } from '../../lib/permisos.js';
 
-export default function Correos({ recargar }) {
+export default function Correos({ recargar, perfil }) {
+  const [calendario, setCalendario] = useState('');
+  const [probando, setProbando] = useState('');
   const [c, setC] = useState(null);
   const [dest, setDest] = useState('');
   const [error, setError] = useState('');
   const toast = useToast();
   useEffect(() => {
     supabase.from('configuracion').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
-      setC(data); setDest((data?.destinatarios_reporte ?? []).join('\n'));
+      setC(data); setDest((data?.destinatarios_reporte ?? []).join('\n')); setCalendario((data?.correos_calendario ?? []).join('\n'));
     });
   }, []);
   if (!c) return <section className="card"><p className="muted">Cargando…</p></section>;
@@ -23,7 +27,9 @@ export default function Correos({ recargar }) {
     const tolerancia = Number(c.tolerancia_min);
     const anticipacion = Number(c.minutos_anticipacion);
     if (recepcion && !EMAIL_RE.test(recepcion)) return setError('Revisa el correo de recepción.');
-    const malos = lista.filter((d) => !EMAIL_RE.test(d));
+    const listaCal = listaCorreos(calendario);
+    const malos = [...lista, ...listaCal].filter((d) => !EMAIL_RE.test(d));
+    if (listaCal.length > 10) return setError('Máximo 10 correos de calendario.');
     if (malos.length) return setError(`Revisa estos correos: ${malos.join(', ')}`);
     if (lista.length > 10) return setError('Máximo 10 destinatarios.');
     if (c.copia_recepcion && !recepcion) return setError('Para enviar copia, escribe el correo de recepción.');
@@ -31,7 +37,7 @@ export default function Correos({ recargar }) {
     if (!Number.isInteger(anticipacion) || anticipacion < 0 || anticipacion > 240) return setError('La llegada temprana debe ser de 0 a 240 minutos.');
     const cambios = {
       correo_recepcion: recepcion || null, copia_recepcion: c.copia_recepcion, avisar_anfitrion: c.avisar_anfitrion,
-      destinatarios_reporte: lista, tolerancia_min: tolerancia, minutos_anticipacion: anticipacion, updated_at: new Date().toISOString(),
+      destinatarios_reporte: lista, correos_calendario: listaCal, tolerancia_min: tolerancia, minutos_anticipacion: anticipacion, updated_at: new Date().toISOString(),
     };
     const { error: err } = await supabase.from('configuracion').update(cambios).eq('id', 1);
     if (err) return setError(mensajeError(err, 'No se pudieron guardar los cambios.'));
@@ -48,6 +54,9 @@ export default function Correos({ recargar }) {
         <div className="field"><label htmlFor="c-dest">Destinatarios de los reportes</label>
           <textarea id="c-dest" rows={3} placeholder="Un correo por línea" value={dest} onChange={(e) => setDest(e.target.value)} />
           <p className="hint">Se usan al enviar reportes y en los reportes automáticos. Máximo 10.</p></div>
+        <div className="field"><label htmlFor="c-cal">Correos para Google Calendar</label>
+          <textarea id="c-cal" rows={2} placeholder="Un correo por línea" value={calendario} onChange={(e) => setCalendario(e.target.value)} />
+          <p className="hint">Reciben <strong>todas</strong> las visitas como invitación de calendario (.ics). Si el anfitrión rechaza, se cancela. Máximo 10.</p></div>
         <div className="field field-corto"><label htmlFor="c-ant">Llegada temprana permitida (minutos)</label>
           <input id="c-ant" type="number" min="0" max="240" step="1" value={c.minutos_anticipacion ?? 10} onChange={(e) => setC({ ...c, minutos_anticipacion: e.target.value })} />
           <p className="hint">Minutos antes de su hora en los que el visitante ya puede entrar. Antes de eso, Recepción verá ACCESO NO PERMITIDO.</p></div>
@@ -57,6 +66,18 @@ export default function Correos({ recargar }) {
         <Mensaje>{error}</Mensaje>
         <button className="btn btn-compact" type="submit">Guardar</button>
       </form>
+      {esSuperadmin(perfil) && (
+        <div className="prueba-reportes">
+          <h3>Reportes automáticos</h3>
+          <p className="muted small">Se envían solos a los destinatarios: diario (lunes a viernes 07:00) y semanal (lunes 07:05). Puedes enviar uno de prueba ahora.</p>
+          {['diario', 'semanal'].map((t) => (
+            <button key={t} type="button" className="btn btn-secondary btn-compact" disabled={Boolean(probando)} onClick={async () => {
+              setProbando(t);
+              try { const r = await invocar('reporte-programado', { tipo: t }); toast(`Reporte ${t} de prueba enviado (${r.total} visitas, ${r.desde} a ${r.hasta}).`); }
+              catch (e) { toast(e.message); } finally { setProbando(''); }
+            }}>{probando === t ? 'Enviando…' : `Enviar reporte ${t} de prueba`}</button>))}
+        </div>
+      )}
     </section>
   );
 }

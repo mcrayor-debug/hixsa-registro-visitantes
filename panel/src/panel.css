@@ -431,3 +431,44 @@ body.admin { background: var(--hx-surface); min-height: 100vh; }
   .ficha-qr img { width: 120px; height: 120px; margin: 0 auto; }
   .filtros-visitantes { grid-template-columns: 1fr; }
 }
+
+/* =====================================================================
+   v4 fase 3: consultas por grupo, seguridad, reportes, importación
+   ===================================================================== */
+.consultas, .reportes, .seguridad, .consulta-visitante { display: grid; gap: 1.25rem; }
+.consultas-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.consultas-head p { margin: 0; }
+.chip-grupo { min-height: 42px; padding: 0 1.25rem; font-size: 0.9375rem; }
+.field-medio { grid-column: span 2; }
+.kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi-color { border-top: 4px solid var(--kpi, var(--hx-navy)); }
+.kpi-color .kpi-valor { color: var(--kpi, var(--hx-navy)); }
+.kpi-export .acciones { margin-top: 0.5rem; }
+.kpi-export .btn { min-height: 36px; padding: 0 0.75rem; font-size: 0.875rem; }
+.seguridad-filtros { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.seguridad-filtros .filtros-rapidos { margin: 0; }
+.reportes-filtros .filtros-grid { align-items: end; }
+.reportes-periodo { margin: 0 0 1.25rem; }
+.duo { display: flex; gap: 2rem; margin-bottom: 0.75rem; }
+.duo > div { display: grid; }
+.barra-duo { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: #EDF1F5; }
+.resumen-mes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin: 0; }
+.resumen-mes div { padding: 0.625rem 0.75rem; background: var(--hx-surface); border-radius: var(--radius-field); }
+.resumen-mes dt { font-size: 0.8125rem; color: var(--hx-muted); }
+.resumen-mes dd { margin: 0.125rem 0 0; font: 700 1.25rem var(--font-head); color: var(--hx-navy); }
+.lista-personas { margin: 0; padding: 0; list-style: none; }
+.lista-personas .hoy-item { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.estado-invitacion { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0 0 1rem; padding: 0.75rem 1rem; background: var(--hx-surface); border-radius: var(--radius-field); }
+.estado-invitacion.activa { background: var(--hx-cyan-soft); }
+.estado-invitacion .btn { width: auto; min-height: 38px; }
+.import-resumen { display: grid; gap: 0.75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--hx-line); }
+.import-resumen p { margin: 0; }
+.import-resumen .btn { justify-self: start; }
+.import-resumen progress { width: 100%; height: 10px; accent-color: var(--hx-navy); }
+.borrado { border-color: #F2C4BE; }
+.borrado-previa { display: grid; gap: 0.75rem; margin-top: 0.5rem; padding: 1rem; background: #FBEAE8; border-radius: var(--radius-field); }
+.borrado-previa p, .borrado-previa ul { margin: 0; }
+.borrado-previa .btn { justify-self: start; }
+.prueba-reportes { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--hx-line); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.prueba-reportes h3, .prueba-reportes p { width: 100%; margin: 0 !important; }
+@media (max-width: 960px) { .kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .field-medio { grid-column: auto; } }

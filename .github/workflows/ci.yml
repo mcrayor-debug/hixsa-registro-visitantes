@@ -25,7 +25,7 @@ jobs:
 
       - name: Sintaxis del formulario y scripts
         run: |
-          for f in public/*.js scripts/*.mjs; do cp "$f" /tmp/check.mjs; node --check /tmp/check.mjs && echo "✔ $f"; done
+          for f in public/*.js scripts/*.mjs panel/src/lib/importar.js; do cp "$f" /tmp/check.mjs; node --check /tmp/check.mjs && echo "✔ $f"; done
           node --check scripts/build-config.cjs
 
       - name: Build de prueba (formulario + panel React)
@@ -34,8 +34,6 @@ jobs:
           SUPABASE_ANON_KEY: sb_publishable_d1FISB2wU-5HvJdUh-kkUA_oB2XiYh_
         run: npm run build
 
-      - name: Reporte diario en modo demo
-        run: node scripts/reporte-diario.mjs --demo
 
       - uses: denoland/setup-deno@v2
         with:
@@ -47,5 +45,7 @@ jobs:
           DENO_NO_PACKAGE_JSON: "1"
         run: |
           deno check registrar-visita/index.ts registrar-acceso/index.ts admin-usuarios/index.ts enviar-reporte/index.ts \
-            visitante-recurrente/index.ts aprobar-visita/index.ts gestionar-visitante/index.ts
+            visitante-recurrente/index.ts aprobar-visita/index.ts gestionar-visitante/index.ts \
+            reenviar-pase/index.ts reporte-programado/index.ts importar-datos/index.ts borrar-perfiles/index.ts
           deno run _shared/horario.test.ts
+          deno run _shared/estadisticas.test.ts

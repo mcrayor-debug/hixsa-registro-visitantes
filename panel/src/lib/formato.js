@@ -20,6 +20,7 @@ export const MOTIVOS = ['Reunión', 'Entrevista', 'Proveedor o servicio', 'Entre
 /** Estado real de la visita según llegada y salida registradas en recepción. */
 export function estadoVisita(v, ahora = Date.now()) {
   if (v.salida_real_at) return { texto: 'Concluida', clave: 'concluida' };
+  if (v.llegada_at && v.origen && v.origen !== 'formulario') return { texto: 'Concluida (importada)', clave: 'concluida' };
   if (v.llegada_at) return { texto: v.entrada_fuera_horario ? 'En sitio (autorizada)' : 'En sitio', clave: 'sitio' };
   if (v.estado_aprobacion === 'rechazada') return { texto: 'Rechazada', clave: 'rechazada' };
   if (ahora > new Date(v.salida).getTime()) return { texto: 'Vencido sin uso', clave: 'ausente' };

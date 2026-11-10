@@ -6,11 +6,11 @@
 // 3. Guarda fotos (identificación y selfie) en el bucket privado y la visita (pendiente de aprobación).
 // 4. Envía el pase con QR al visitante y la solicitud de aprobación al anfitrión.
 // =====================================================================
-import QRCode from "npm:qrcode@1.5.4";
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
 import { botonCorreo, EMAIL_RE, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
-import { formatoFecha, formatoHora, huellaPase } from "../_shared/formato.ts";
+import { formatoFecha, formatoHora } from "../_shared/formato.ts";
+import { enviarPase } from "../_shared/pase.ts";
 import { filtroAuditoria } from "../_shared/auth.ts";
 import { sha256Hex, tokenAleatorio, TOKEN_RE } from "../_shared/tokens.ts";
 
@@ -221,54 +221,17 @@ Deno.serve(async (req) => {
   }
   if (tokenId) await db.from("verificaciones").update({ usado_at: ahoraIso }).eq("id", tokenId);
 
-  // QR del pase
-  const huella = await huellaPase(visita);
-  const contenidoQr = sitio
-    ? `${sitio}/admin.html?pase=${encodeURIComponent(visita.folio)}&h=${huella}`
-    : `HIXSA|${visita.folio}|${visita.nombre_completo}|${visita.entrada}|${visita.salida}|${huella}`;
-  const qrDataUrl: string = await QRCode.toDataURL(contenidoQr, { errorCorrectionLevel: "M", margin: 2, width: 440, color: { dark: "#0047BA", light: "#FFFFFF" } });
-  const qrBase64 = qrDataUrl.split(",")[1];
-
+  // Pase con QR e invitación de calendario al visitante; invitación a los calendarios configurados
+  const { qr: qrDataUrl, correoEnviado } = await enviarPase(db, { ...visita, nombre: datos.nombre }, {
+    empresaVisita: empresa.nombre, aprueba: apruebaAnfitrion ? "anfitrion" : "recepcion",
+  });
   const logo = await logoCorreo(db);
-  const { data: cfg } = await db.from("configuracion").select("correo_recepcion, copia_recepcion").eq("id", 1).maybeSingle();
-  const cc = cfg?.copia_recepcion && cfg.correo_recepcion ? [cfg.correo_recepcion] : [];
   const fila = (k: string, val: string) =>
     `<tr><td style="padding:6px 0;color:#5B6B7F;width:140px;vertical-align:top">${k}</td><td style="padding:6px 0;font-weight:600">${escapar(val)}</td></tr>`;
-  const mismaFecha = formatoFecha(visita.entrada) === formatoFecha(visita.salida);
   const tablaVisita = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">
-    ${fila("Entrada", `${formatoFecha(visita.entrada)}, ${formatoHora(visita.entrada)} h`)}
-    ${fila("Salida", mismaFecha ? `${formatoHora(visita.salida)} h` : `${formatoFecha(visita.salida)}, ${formatoHora(visita.salida)} h`)}
-    ${fila("Empresa a visitar", empresa.nombre)}${fila("Visitas a", visita.persona_visita)}${fila("Motivo", visita.motivo)}${fila("Tu empresa", visita.empresa)}
+    ${fila("Entrada", `${formatoFecha(visita.entrada)}, ${formatoHora(visita.entrada)} h`)}${fila("Salida", `${formatoFecha(visita.salida)}, ${formatoHora(visita.salida)} h`)}
+    ${fila("Empresa a visitar", empresa.nombre)}${fila("Motivo", visita.motivo)}${fila("Empresa de origen", visita.empresa)}
   </table>`;
-
-  let correoEnviado = false;
-  try {
-    await enviarCorreo({
-      para: [visita.correo], cc,
-      asunto: `Tu pase de visita a ${empresa.nombre} (${visita.folio})`,
-      html: plantilla({
-        titulo: "Tu pase de visita", logo,
-        cuerpo: `<p style="margin:0 0 12px;font-size:16px">Hola ${escapar(datos.nombre)}, tu visita quedó registrada. Muestra este código en recepción al llegar.</p>
-          <p style="margin:0 0 16px;padding:10px 12px;background:#FFF6DB;border-radius:8px">
-            ${apruebaAnfitrion ? `Tu anfitrión debe confirmar la visita; te avisaremos por correo cuando lo haga.` : `Recepción validará tu visita al llegar.`}</p>
-          <div style="text-align:center;margin:20px 0">
-            <img src="cid:qr-pase" width="220" height="220" alt="Código QR del pase ${escapar(visita.folio)}" style="display:inline-block;border:1px solid #D3DCE6;border-radius:8px">
-            <div style="font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#0047BA;margin-top:10px">${escapar(visita.folio)}</div>
-          </div>${tablaVisita}
-          <p style="margin:18px 0 0;font-size:13px;color:#5B6B7F">Llega dentro de tu horario: fuera de él, Recepción no podrá registrar tu entrada sin autorización.</p>`,
-      }),
-      texto: `Tu visita a ${empresa.nombre} quedó registrada. Folio ${visita.folio}. Entrada: ${formatoFecha(visita.entrada)} ${formatoHora(visita.entrada)} h.`,
-      adjuntos: [
-        { filename: "qr-pase.png", content: qrBase64, content_type: "image/png", content_id: "qr-pase" },
-        { filename: `pase-${visita.folio}.png`, content: qrBase64, content_type: "image/png" },
-      ],
-    });
-    correoEnviado = true;
-    await db.from("visitantes").update({ qr_enviado_at: new Date().toISOString(), correo_error: null }).eq("id", visita.id);
-  } catch (e) {
-    console.error("envío del pase", e);
-    await db.from("visitantes").update({ correo_error: String(e).slice(0, 300) }).eq("id", visita.id);
-  }
 
   // Solicitud de aprobación al anfitrión
   if (apruebaAnfitrion && tokenAprobacion) {

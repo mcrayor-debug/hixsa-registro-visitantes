@@ -1,5 +1,23 @@
 # Historial de versiones
 
+## 4.0.0-fase.3 (noviembre 2026)
+
+### Nuevo
+- **Consultas** en tres grupos: *por fecha* (con “quién estuvo”, “sin salida registrada” y duración promedio), *por visitante* (historial, estado actual de su invitación y **reenviar QR**) y *de seguridad* (activos ahora, QR usados fuera de horario, intentos con QR vencido y **log de auditoría** exportable).
+- **Pestaña Reportes** semanal y mensual: Total, Únicos, Puntual y Exportar; visitas por día, horas pico, nuevos contra recurrentes, invitaciones vencidas sin uso, resumen del mes, top 10, ocupación por franja horaria y visitas por anfitrión y área.
+- **PDF** con la identidad de HIXSA en consultas, reportes y log de auditoría; envío por correo con CSV y PDF.
+- **Reportes automáticos desde Supabase** (pg_cron): diario de lunes a viernes 07:00 y semanal los lunes 07:05, con modo auditoría. Botón de prueba para el SUPERADMIN.
+- **Calendario**: el pase incluye invitación `.ics` y enlace “Agregar a Google Calendar”; los correos configurados reciben **todas** las visitas como invitación (y la cancelación si el anfitrión rechaza).
+- **Importación** de Glide (`visitantes.csv` y `Visitas.csv`) y de la plantilla HIXSA, con vista previa, sin duplicados y copia de fotos.
+- **Borrado de perfiles** con filtros (solo SUPERADMIN): borra perfil y fotos y anonimiza el historial.
+- Recepción ve **ACCESO NO PERMITIDO** también en pases de otro día (antes: “no encontrado”) y el intento queda registrado.
+- Mensaje claro cuando una empresa no tiene anfitriones.
+
+### Cambios
+- Se retiraron el workflow de GitHub `reporte-diario.yml` y `scripts/reporte-diario.mjs`. **Ya no se usa la API de Claude.**
+- Indicadores calculados en un solo módulo compartido: `supabase/functions/_shared/estadisticas.js` (panel y correos dan las mismas cifras).
+- Visitas con `origen` (formulario, glide, importacion); las importadas no cuentan en puntualidad.
+
 ## 4.0.0-fase.2 (noviembre 2026)
 
 ### Nuevo

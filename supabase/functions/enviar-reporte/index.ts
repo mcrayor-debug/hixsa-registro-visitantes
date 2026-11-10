@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     return json({ error: "Tu rol no tiene permiso para exportar ni enviar reportes." }, 403);
   }
 
-  const p = await leerJson<{ filtros?: Filtros; destinatarios?: string[] }>(req);
+  const p = await leerJson<{ filtros?: Filtros; destinatarios?: string[]; titulo?: string; pdf?: { nombre?: string; base64?: string } }>(req);
   const filtros = p?.filtros ?? {};
   const destinatarios = [...new Set((p?.destinatarios ?? []).map((d) => String(d).trim().toLowerCase()).filter(Boolean))];
   if (!destinatarios.length) return json({ error: "Agrega al menos un destinatario." }, 422);
@@ -102,16 +102,24 @@ Deno.serve(async (req) => {
   <p style="color:#5B6B7F;font-size:13px">El detalle completo va en el archivo CSV adjunto (se abre con Excel).</p>
 </div>`;
 
+  // PDF opcional (lo genera el panel): máx. 4 MB, validado por su firma %PDF
+  const adjuntoPdf = [] as { filename: string; content: string; content_type: string }[];
+  if (p?.pdf?.base64) {
+    const b64 = String(p.pdf.base64);
+    if (b64.length > 5_600_000) return json({ error: "El PDF es demasiado grande." }, 422);
+    if (!atob(b64.slice(0, 8)).startsWith("%PDF")) return json({ error: "El archivo adjunto no es un PDF." }, 422);
+    adjuntoPdf.push({ filename: String(p.pdf.nombre ?? "reporte.pdf").replace(/[^\w.-]/g, "_").slice(0, 80), content: b64, content_type: "application/pdf" });
+  }
   try {
     await enviarCorreo({
       para: destinatarios,
-      asunto: `Reporte de visitas HIXSA (${rango})`,
+      asunto: `${p?.titulo ? String(p.titulo).slice(0, 80) : "Reporte de visitas HIXSA"} (${rango})`,
       html,
       adjuntos: [{
         filename: `visitas_${filtros.desde ?? "inicio"}_${filtros.hasta ?? "hoy"}.csv`,
         content: base64Utf8(aCsv(filas)),
         content_type: "text/csv",
-      }],
+      }, ...adjuntoPdf],
     });
   } catch (e) {
     console.error(e);

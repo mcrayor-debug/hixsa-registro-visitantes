@@ -5,6 +5,7 @@ import Roles from './config/Roles.jsx';
 import Empresas from './config/Empresas.jsx';
 import Anfitriones from './config/Anfitriones.jsx';
 import Visitantes from './config/Visitantes.jsx';
+import Datos from './config/Datos.jsx';
 import Correos from './config/Correos.jsx';
 import Bitacora from './config/Bitacora.jsx';
 
@@ -14,6 +15,7 @@ const APARTADOS = [
   ['empresas', 'Empresas', 'config_empresas'],
   ['anfitriones', 'Anfitriones', 'config_anfitriones'],
   ['visitantes', 'Visitantes', 'config_visitantes'],
+  ['datos', 'Importar y depurar', 'config_visitantes'],
   ['correos', 'Correos y avisos', 'config_correos'],
   ['bitacora', 'Bitácora', 'config_bitacora'],
 ];
@@ -34,7 +36,8 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
       {apartado === 'empresas' && <Empresas config={config} empresas={empresas} recargar={recargar} />}
       {apartado === 'anfitriones' && <Anfitriones empresas={empresas} />}
       {apartado === 'visitantes' && <Visitantes />}
-      {apartado === 'correos' && <Correos recargar={recargar} />}
+      {apartado === 'datos' && <Datos perfil={perfil} />}
+      {apartado === 'correos' && <Correos recargar={recargar} perfil={perfil} />}
       {apartado === 'bitacora' && <Bitacora />}
     </div>
   );

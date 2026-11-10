@@ -41,11 +41,11 @@ Deno.serve(async (req) => {
   const folio = String(p?.folio ?? "").trim().toUpperCase();
   const accion = String(p?.accion ?? "");
   if (!FOLIO_RE.test(folio)) return json({ error: "Folio inválido." }, 422);
-  if (!["llegada", "autorizar", "aprobar", "salida"].includes(accion)) return json({ error: "Acción inválida." }, 422);
+  if (!["llegada", "autorizar", "aprobar", "salida", "consultar"].includes(accion)) return json({ error: "Acción inválida." }, 422);
 
   const { data: v } = await db.from("visitantes")
     .select("id, folio, correo, nombre_completo, empresa, motivo, persona_visita, entrada, salida, llegada_at, salida_real_at, " +
-      "anfitrion_id, empresa_visita_id, estado_aprobacion, personas(estado_bloqueo, bloqueo_motivo), anfitriones(nombre, correo)")
+      "anfitrion_id, empresa_visita_id, estado_aprobacion, personas(estado_bloqueo, bloqueo_motivo), anfitriones(nombre, correo), empresas(nombre)")
     .eq("folio", folio).maybeSingle();
   const soloEmpresa = await filtroAuditoria(db);
   // deno-lint-ignore no-explicit-any
@@ -59,6 +59,24 @@ Deno.serve(async (req) => {
       visita_id: visita.id, folio, resultado, motivo: pr.motivo, detalle: pr.detalle.slice(0, 300),
       usuario_id: yo.id, usuario_email: yo.email, autorizacion_motivo: autorizacion ?? null,
     });
+
+  // ---------- consultar: el panel no puede ver la visita (otro día o fuera del alcance del rol) ----------
+  if (accion === "consultar") {
+    const { data: cfgC } = await db.from("configuracion").select("tolerancia_min, minutos_anticipacion").eq("id", 1).maybeSingle();
+    const evC = evaluarLlegada(visita, ahora, { anticipacion: cfgC?.minutos_anticipacion ?? 10, tolerancia: cfgC?.tolerancia_min ?? 15 });
+    const resumen = {
+      folio: visita.folio, nombre_completo: visita.nombre_completo, empresa: visita.empresa,
+      empresa_visita: visita.empresas?.nombre ?? "", entrada: visita.entrada, salida: visita.salida,
+    };
+    if (evC.permitido || visita.llegada_at) return json({ ok: true, visita: resumen, fuera_de_alcance: true });
+    const pr = { motivo: evC.motivo!, autorizable: false, detalle: evC.detalle! };
+    await registrarIntento(pr, "rechazado");
+    return json({
+      error: "ACCESO NO PERMITIDO", codigo: pr.motivo, motivo: TEXTOS[pr.motivo], visita: resumen,
+      problemas: [{ codigo: pr.motivo, motivo: TEXTOS[pr.motivo], detalle: pr.detalle }], autorizable: false, aprobable: false,
+      sugerencia: "Sugiere al visitante hacer un nuevo registro con la fecha y el horario correctos.",
+    }, 409);
+  }
 
   // ---------- salida: siempre permitida ----------
   if (accion === "salida") {

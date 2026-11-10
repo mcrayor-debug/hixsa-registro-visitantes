@@ -12,7 +12,6 @@ panel interno con consultas, reportes y administración de usuarios, y reporte d
 - `npm run build` → `dist/` (copia `public/`, genera `dist/config.js` y compila el panel en `dist/admin/`).
 - `supabase/schema.sql`: modelo de datos y RLS (idempotente). `crear-admin.sql`: primer administrador.
 - `supabase/functions/`: Edge Functions en Deno (`registrar-visita`, `registrar-acceso`, `admin-usuarios`, `enviar-reporte`).
-- `scripts/reporte-diario.mjs`: automatización con API de Supabase + API de Claude (GitHub Actions).
 - `.mcp.json`: servidor MCP de Supabase en solo lectura. `.claude/skills/reporte-visitas`: reporte semanal.
 
 ## Reglas de seguridad (no negociables)
@@ -77,3 +76,14 @@ cd supabase/functions && DENO_NO_PACKAGE_JSON=1 deno check */index.ts
 - Aprobación: token aleatorio, se guarda solo su SHA-256 en `visitantes.aprobacion_token_hash`; un solo uso.
   El enlace abre `public/aprobar.html` y requiere clic (los antivirus de correo que abren enlaces no aprueban).
 - Fotos (identificación y selfie) en el bucket privado `identificaciones`; selfies en `selfies/`.
+
+### Fase 3 (consultas, reportes, calendario, importación)
+- Indicadores: **solo** en `supabase/functions/_shared/estadisticas.js` (JS puro). Lo importan el panel
+  (`../../../supabase/functions/_shared/estadisticas.js`) y `reporte-programado`. Pruebas: `estadisticas.test.ts`.
+- Reportes automáticos: `reporte-programado`, llamada por pg_cron con `x-cron-secret` = secreto `REPORTES_SECRETO`
+  (programación en `supabase/programar-reportes.sql`, con Vault). Sin GitHub Actions ni API de Claude.
+- PDF en el navegador con `panel/src/lib/pdf.js` (jsPDF cargado bajo demanda).
+- Calendario: `_shared/calendario.ts` (ICS RFC 5545). Pase: `_shared/pase.ts` (registro y reenvío).
+- Importación: `panel/src/lib/importar.js` normaliza CSV; `importar-datos` valida y guarda (origen + origen_id evita duplicados;
+  fotos solo de dominios de Google/Glide). Visitas importadas: `origen != 'formulario'`.
+- Borrado: `borrar-perfiles` (solo SUPERADMIN) anonimiza visitas y borra perfil y fotos; nunca bloqueados ni con visitas próximas.

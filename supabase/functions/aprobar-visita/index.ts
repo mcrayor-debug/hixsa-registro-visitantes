@@ -8,6 +8,7 @@ import { clienteServicio } from "../_shared/supabase.ts";
 import { enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
 import { sha256Hex, TOKEN_RE } from "../_shared/tokens.ts";
+import { cancelarCalendario } from "../_shared/pase.ts";
 
 Deno.serve(async (req) => {
   const previo = prepararPeticion(req);
@@ -18,7 +19,7 @@ Deno.serve(async (req) => {
 
   const db = clienteServicio();
   const { data: v } = await db.from("visitantes")
-    .select("id, folio, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, estado_aprobacion, empresas(nombre)")
+    .select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, estado_aprobacion, empresas(nombre)")
     .eq("aprobacion_token_hash", await sha256Hex(token)).maybeSingle();
   if (!v) return json({ error: "Este enlace ya se usó o no es válido." }, 404);
 
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
   }).eq("id", v.id).eq("estado_aprobacion", "pendiente");
   if (error) return json({ error: "No se pudo guardar tu respuesta. Intenta de nuevo." }, 500);
 
+  if (estado === "rechazada") await cancelarCalendario(db, v, resumen.empresa_visita);
   try {
     const cuando = `${formatoFecha(v.entrada)}, ${formatoHora(v.entrada)} h`;
     await enviarCorreo({
