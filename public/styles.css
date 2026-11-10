@@ -556,3 +556,42 @@ body { font-size: 1.0625rem; }
   .empresa-nombre-logo { min-width: 0; width: 100%; font-size: 1.25rem; height: 56px; }
   .empresa-boton-grande { grid-column: 1 / -1; min-height: 220px; }
 }
+
+/* =====================================================================
+   v4 fase 2: recurrentes, selfie, equipo y página de aprobación
+   ===================================================================== */
+.recurrente { margin: 0 0 1.75rem; padding: 1rem 1.125rem; background: var(--hx-cyan-soft); border-radius: var(--radius-card); }
+.recurrente-inicio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.recurrente-inicio p { margin: 0; flex: 1 1 260px; }
+.recurrente-paso label { display: block; margin-bottom: 0.375rem; font-weight: 600; }
+.recurrente-paso + .recurrente-paso { margin-top: 0.875rem; }
+.fila-accion { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.fila-accion input { flex: 1 1 200px; }
+.fila-accion .btn { width: auto; }
+#rec-codigo { letter-spacing: 0.4em; font-weight: 700; font-size: 1.25rem; max-width: 220px; }
+.recurrente-msg { margin: 0.75rem 0 0; font-size: 0.9375rem; }
+.recurrente-msg:empty { display: none; }
+.recurrente-msg[data-tipo="ok"] { color: #145C3C; font-weight: 600; }
+.recurrente-msg[data-tipo="error"] { color: var(--hx-error); font-weight: 600; }
+.recurrente .link-btn { margin-top: 0.5rem; }
+.check-grande { display: flex; gap: 0.75rem; align-items: center; min-height: 44px; font-weight: 600; cursor: pointer; }
+.check-grande input { width: 22px; height: 22px; accent-color: var(--hx-navy); flex: none; }
+.pass-aprobacion { margin: 0 auto 0.75rem !important; padding: 0.75rem 1rem; max-width: 420px; color: #6B4E00 !important; background: #FFF6DB; border-radius: var(--radius-field); font-weight: 600; }
+
+.pagina-simple { min-height: 100vh; background: var(--hx-surface); }
+.aprobar { display: grid; place-items: start center; padding: clamp(1.5rem, 5vw, 3rem) 1rem; }
+.aprobar-card { width: 100%; max-width: 560px; border-width: 2px; }
+.aprobar-card h1 { margin: 0 0 0.5rem; font: 700 1.625rem var(--font-head); color: var(--hx-navy); }
+.aprobar-card[data-resultado="valido"] { border-color: var(--hx-success); }
+.aprobar-card[data-resultado="valido"] h1 { color: var(--hx-success); }
+.aprobar-card[data-resultado="invalido"] { border-color: var(--hx-error); }
+.aprobar-card[data-resultado="invalido"] h1 { color: var(--hx-error); }
+.aprobar-card[data-resultado="aviso"] { border-color: var(--hx-amarillo); }
+.pase-detalle { display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1.25rem; margin: 1rem 0; }
+.pase-detalle dt { color: var(--hx-muted); }
+.pase-detalle dd { margin: 0; font-weight: 600; }
+.aprobar-acciones { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.25rem; }
+.aprobar-acciones .btn { flex: 1 1 180px; width: auto; }
+.btn-peligro { background: var(--hx-error); }
+.btn-peligro:hover { background: #9E2E23; }
+@media (max-width: 480px) { .pase-detalle { grid-template-columns: 1fr; gap: 0.125rem; } .pase-detalle dd { margin-bottom: 0.5rem; } }

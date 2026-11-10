@@ -1,5 +1,23 @@
 # Historial de versiones
 
+## 4.0.0-fase.2 (noviembre 2026)
+
+### Nuevo
+- **Validación de horario en el servidor**: la entrada solo se registra desde N minutos antes (configurable, 10 por defecto) hasta la tolerancia. Fuera de eso, Recepción ve **ACCESO NO PERMITIDO** con el motivo (llegada anticipada, tarde, fecha no asignada, pase caducado) y una sugerencia.
+- **Entrada autorizada**: si el problema es autorizable (llegó antes o tarde el mismo día, o el anfitrión aún no aprueba), Recepción puede autorizar con **motivo obligatorio**; queda registrado y no cuenta como puntual. Las salidas siempre se permiten.
+- **Intentos de acceso**: cada rechazo o autorización queda guardado (base de las consultas de seguridad de la fase 3).
+- **Aprobación del anfitrión**: recibe un correo con **Aprobar / Rechazar** (página de confirmación, enlace de un solo uso). Sin anfitrión con correo, valida Recepción. Se avisa al visitante del resultado.
+- **Visitantes recurrentes**: recuperan sus datos con su correo y un **código de 6 dígitos** (10 min, 5 intentos); se reutilizan sus fotos. Casilla “Guardar mis datos” para los nuevos.
+- **Selfie obligatoria** para quien accede a salas de juntas.
+- **Equipo de cómputo** opcional: tipo, marca y número de serie.
+- **Perfiles de visitantes** y **bloqueos** (no deseado, restringido, bloqueado) en Configuración → Visitantes, con aviso por correo a los SUPERADMIN y a sus anfitriones.
+- **Ficha de Recepción** con QR del pase, identificación, selfie, equipo, estado de aprobación, alertas e historial de intentos; diseño para celular y tablet con acciones siempre visibles.
+
+### Cambios
+- Los estados de visita ahora incluyen “Pendiente de aprobación”, “Rechazada” y “Vencido sin uso”.
+- El botón de llegada se llama “Registrar entrada” y siempre valida en el servidor.
+- Nuevas Edge Functions: `visitante-recurrente`, `aprobar-visita`, `gestionar-visitante`. Nueva página `aprobar.html`.
+
 ## 4.0.0-fase.1 (noviembre 2026)
 
 ### Nuevo

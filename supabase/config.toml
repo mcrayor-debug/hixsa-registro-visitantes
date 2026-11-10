@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.registrar-acceso]
 verify_jwt = false
+
+[functions.visitante-recurrente]
+verify_jwt = false
+
+[functions.aprobar-visita]
+verify_jwt = false
+
+[functions.gestionar-visitante]
+verify_jwt = false

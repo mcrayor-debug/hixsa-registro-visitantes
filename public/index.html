@@ -78,8 +78,31 @@
         <form id="registro" novalidate>
           <header class="form-head">
             <h2>Registro de visitantes</h2>
-            <p>Todos los campos son obligatorios, excepto los comentarios.</p>
+            <p>Todos los campos son obligatorios, excepto los marcados como opcionales.</p>
           </header>
+
+          <section class="recurrente" id="recurrente" aria-labelledby="rec-titulo">
+            <div class="recurrente-inicio" id="rec-inicio">
+              <p id="rec-titulo"><strong>¿Ya nos visitaste antes?</strong> Recupera tus datos con tu correo y no tendrás que capturarlos de nuevo.</p>
+              <button type="button" class="btn btn-secondary btn-compact" id="rec-abrir">Recuperar mis datos</button>
+            </div>
+            <div class="recurrente-paso" id="rec-paso-correo" hidden>
+              <label for="rec-correo">Tu correo</label>
+              <div class="fila-accion">
+                <input id="rec-correo" type="email" autocomplete="email" inputmode="email" placeholder="nombre@empresa.com">
+                <button type="button" class="btn btn-compact" id="rec-enviar">Enviarme un código</button>
+              </div>
+            </div>
+            <div class="recurrente-paso" id="rec-paso-codigo" hidden>
+              <label for="rec-codigo">Código de 6 dígitos</label>
+              <div class="fila-accion">
+                <input id="rec-codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+                <button type="button" class="btn btn-compact" id="rec-verificar">Verificar</button>
+              </div>
+              <button type="button" class="link-btn" id="rec-reenviar">Enviarme otro código</button>
+            </div>
+            <p class="recurrente-msg" id="rec-msg" role="status" aria-live="polite"></p>
+          </section>
 
           <fieldset>
             <legend>Tus datos</legend>
@@ -216,6 +239,26 @@
             </fieldset>
 
             <div class="field">
+              <label class="check-grande" for="sala_juntas">
+                <input id="sala_juntas" name="sala_juntas" type="checkbox">
+                <span>Accederé a salas de juntas</span>
+              </label>
+              <p class="hint">Si es así, toma una selfie para que Recepción te identifique.</p>
+            </div>
+
+            <div class="field" id="selfie-field" hidden>
+              <span class="label" id="selfie-label">Selfie</span>
+              <div class="foto-box" id="selfie-box" aria-describedby="selfie-error">
+                <img id="selfie-preview" alt="Vista previa de tu selfie" hidden>
+                <p class="foto-vacia" id="selfie-vacia">Toma una foto de tu rostro, de frente y sin lentes oscuros.</p>
+                <label class="btn btn-secondary btn-foto" for="selfie" id="selfie-boton">Tomar selfie</label>
+                <input id="selfie" name="selfie" type="file" accept="image/*" capture="user"
+                       class="sr-only" aria-labelledby="selfie-label selfie-boton">
+              </div>
+              <p class="error" id="selfie-error" aria-live="polite"></p>
+            </div>
+
+            <div class="field">
               <label for="comentarios">Comentarios <span class="optional">(opcional)</span></label>
               <textarea id="comentarios" name="comentarios" rows="3" maxlength="500"
                         aria-describedby="comentarios-count comentarios-error"></textarea>
@@ -224,10 +267,41 @@
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend>Equipo de cómputo <span class="optional">(opcional)</span></legend>
+            <p class="hint fieldset-hint">Registra el equipo que ingresas para agilizar tu salida.</p>
+            <div class="field">
+              <label for="equipo_tipo">Tipo de equipo</label>
+              <select id="equipo_tipo" name="equipo_tipo">
+                <option value="">No llevo equipo</option>
+                <option>Laptop</option><option>Tablet</option><option>Proyector</option>
+                <option>Disco o memoria</option><option>Otro</option>
+              </select>
+            </div>
+            <div class="grid-2" id="equipo-detalle" hidden>
+              <div class="field">
+                <label for="equipo_marca">Marca</label>
+                <input id="equipo_marca" name="equipo_marca" type="text" maxlength="60">
+              </div>
+              <div class="field">
+                <label for="equipo_serie">Número de serie</label>
+                <input id="equipo_serie" name="equipo_serie" type="text" maxlength="80">
+              </div>
+            </div>
+          </fieldset>
+
           <!-- Trampa anti-bots: invisible para personas -->
           <div class="hp" aria-hidden="true">
             <label for="sitio_web">No llenes este campo</label>
             <input id="sitio_web" name="sitio_web" type="text" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="field" id="guardar-field">
+            <label class="check-grande" for="guardar_datos">
+              <input id="guardar_datos" name="guardar_datos" type="checkbox">
+              <span>Guardar mis datos para mis próximas visitas</span>
+            </label>
+            <p class="hint">La próxima vez solo escribes tu correo y un código que te enviaremos.</p>
           </div>
 
           <div class="field">
@@ -258,6 +332,7 @@
             <div><dt>Entrada</dt><dd id="exito-entrada"></dd></div>
             <div><dt>Salida</dt><dd id="exito-salida"></dd></div>
           </dl>
+          <p class="pass-aprobacion" id="exito-aprobacion"></p>
           <p class="pass-mail" id="exito-correo"></p>
           <a class="btn" id="exito-descargar" download>Descargar pase</a>
           <button class="btn btn-secondary" id="nuevo" type="button">Registrar a otra persona</button>

@@ -67,3 +67,13 @@ cd supabase/functions && DENO_NO_PACKAGE_JSON=1 deno check */index.ts
   registran los suyos con `registrarCambio()`.
 - **Sin API de Claude:** los reportes usan resúmenes calculados.
 - **Marca:** colores y fuentes solo desde las variables de `public/styles.css`. El logotipo no se deforma ni se recolorea.
+
+### Fase 2 (recepción y seguridad)
+- Reglas de horario en `supabase/functions/_shared/horario.ts`, con pruebas en `horario.test.ts` (corren en CI).
+  Ventana: entrada − `minutos_anticipacion` a entrada + `tolerancia_min`, mismo día (CDMX). Salidas siempre permitidas.
+- `registrar-acceso` acciones: `llegada`, `autorizar` (motivo ≥ 5), `aprobar`, `salida`. Todo rechazo/autorización → `intentos_acceso`.
+- Perfiles en `personas` (uno por correo). Un perfil existente solo se actualiza con token de recurrente verificado (evita suplantación).
+- Códigos y tokens en `verificaciones` (solo service_role). Nunca devolver datos de un perfil sin código verificado.
+- Aprobación: token aleatorio, se guarda solo su SHA-256 en `visitantes.aprobacion_token_hash`; un solo uso.
+  El enlace abre `public/aprobar.html` y requiere clic (los antivirus de correo que abren enlaces no aprueban).
+- Fotos (identificación y selfie) en el bucket privado `identificaciones`; selfies en `selfies/`.

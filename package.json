@@ -1,6 +1,6 @@
 {
   "name": "hixsa-registro-visitantes",
-  "version": "4.0.0-fase.1",
+  "version": "4.0.0-fase.2",
   "private": true,
   "description": "Formulario de registro rápido de visitantes para HIXSA (Supabase + Cloudflare Pages).",
   "scripts": {
@@ -19,6 +19,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
     "jsqr": "1.4.0",
+    "qrcode": "^1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "recharts": "2.13.3"

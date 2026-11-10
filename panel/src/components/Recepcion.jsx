@@ -14,7 +14,7 @@ export default function Recepcion({ paseInicial }) {
 
   const cargarHoy = useCallback(async () => {
     const { data } = await consultaVisitas({ desde: hoyCDMX(), hasta: hoyCDMX() },
-      'folio, nombre_completo, empresa, persona_visita, entrada, salida, llegada_at, salida_real_at')
+      'folio, nombre_completo, empresa, persona_visita, entrada, salida, llegada_at, salida_real_at, estado_aprobacion, entrada_fuera_horario, personas(estado_bloqueo)')
       .order('entrada', { ascending: true }).limit(300);
     setHoy(data ?? []);
   }, []);
@@ -73,7 +73,7 @@ export default function Recepcion({ paseInicial }) {
             <li key={v.folio}>
               <button type="button" className="hoy-item" aria-current={sel?.folio === v.folio} onClick={() => setSel({ folio: v.folio, h: null })}>
                 <span className="hoy-hora">{fmtHora.format(new Date(v.entrada))}</span>
-                <span className="hoy-datos"><strong>{v.nombre_completo}</strong><span className="muted small">{v.empresa}, visita a {v.persona_visita}</span></span>
+                <span className="hoy-datos"><strong>{v.nombre_completo}{v.personas?.estado_bloqueo && v.personas.estado_bloqueo !== 'ninguno' && <span className="alerta-punto" title="Visitante con alerta" aria-label="Visitante con alerta"> ⚠</span>}</strong><span className="muted small">{v.empresa}, visita a {v.persona_visita}</span></span>
                 <Estado {...estadoVisita(v)} />
               </button>
             </li>

@@ -9,16 +9,20 @@ export const supabase = configurado ? createClient(cfg.SUPABASE_URL, cfg.SUPABAS
 export async function invocar(nombre, body) {
   const { data, error } = await supabase.functions.invoke(nombre, { body });
   if (error) {
-    let msg = null;
-    try { msg = (await error.context.json()).error; } catch { /* sin cuerpo */ }
-    throw new Error(msg ?? 'No se pudo completar la acción. Intenta de nuevo.');
+    let cuerpo = null;
+    try { cuerpo = await error.context.json(); } catch { /* sin cuerpo */ }
+    const err = new Error(cuerpo?.error ?? 'No se pudo completar la acción. Intenta de nuevo.');
+    err.datos = cuerpo; // p. ej. ACCESO NO PERMITIDO con sus motivos
+    throw err;
   }
   return data;
 }
 
 export const CAMPOS_VISITA = 'id, folio, nombre_completo, empresa, correo, telefono, persona_visita, anfitrion_id, motivo, comentarios, '
   + 'entrada, salida, llegada_at, salida_real_at, anfitrion_avisado_at, tipo_identificacion, identificacion_detalle, '
-  + 'identificacion_path, qr_enviado_at, correo_error, nombre, apellidos, empresa_visita_id, empresas(nombre)';
+  + 'identificacion_path, qr_enviado_at, correo_error, nombre, apellidos, empresa_visita_id, empresas(nombre), '
+  + 'sala_juntas, selfie_path, equipo_tipo, equipo_marca, equipo_serie, estado_aprobacion, aprobacion_por, aprobacion_at, '
+  + 'entrada_fuera_horario, autorizacion_motivo, persona_id, personas(estado_bloqueo, bloqueo_motivo, recurrente), anfitriones(nombre, correo)';
 
 const limpiar = (s) => (s ?? '').replace(/[,()*%\\]/g, ' ').trim().slice(0, 80);
 

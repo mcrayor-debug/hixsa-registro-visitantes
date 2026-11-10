@@ -9,6 +9,7 @@ export const SECCIONES = [
   ['config_roles', 'Configuración: roles'],
   ['config_empresas', 'Configuración: empresas y modo auditoría'],
   ['config_anfitriones', 'Configuración: anfitriones'],
+  ['config_visitantes', 'Configuración: visitantes y bloqueos'],
   ['config_correos', 'Configuración: correos, avisos y tolerancia'],
   ['config_bitacora', 'Configuración: bitácora'],
 ];

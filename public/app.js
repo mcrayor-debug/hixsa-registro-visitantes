@@ -181,6 +181,114 @@ inputFoto.addEventListener('change', async () => {
   inputFoto.value = '';
 });
 
+// ---------- Selfie (obligatoria para salas de juntas) ----------
+let selfieDataUrl = null;
+const inputSelfie = $('#selfie');
+inputSelfie.addEventListener('change', async () => {
+  const file = inputSelfie.files?.[0];
+  if (!file) return;
+  try {
+    selfieDataUrl = await comprimir(file);
+    $('#selfie-preview').src = selfieDataUrl;
+    $('#selfie-preview').hidden = false;
+    $('#selfie-vacia').hidden = true;
+    $('#selfie-boton').textContent = 'Cambiar selfie';
+    setError('selfie', '');
+  } catch {
+    selfieDataUrl = null;
+    setError('selfie', 'No pudimos leer esa imagen. Toma la selfie de nuevo.');
+  }
+  inputSelfie.value = '';
+});
+function limpiarSelfie() {
+  selfieDataUrl = null;
+  $('#selfie-preview').hidden = true;
+  $('#selfie-preview').removeAttribute('src');
+  $('#selfie-vacia').hidden = false;
+  $('#selfie-boton').textContent = 'Tomar selfie';
+}
+$('#sala_juntas').addEventListener('change', (e) => {
+  $('#selfie-field').hidden = !e.target.checked;
+  if (!e.target.checked) setError('selfie', '');
+});
+$('#equipo_tipo').addEventListener('change', (e) => { $('#equipo-detalle').hidden = !e.target.value; });
+
+// ---------- Visitante recurrente (código de verificación por correo) ----------
+let recurrente = null; // { correo, token, perfil }
+const TEXTO_FOTO = 'Toma la foto de frente, con buena luz y sin reflejos.';
+const TEXTO_SELFIE = 'Toma una foto de tu rostro, de frente y sin lentes oscuros.';
+function recMsg(texto, tipo = '') { const m = $('#rec-msg'); m.textContent = texto; m.dataset.tipo = tipo; }
+async function invocarPublico(nombre, body) {
+  const { data, error } = await supabase.functions.invoke(nombre, { body });
+  if (error) {
+    const cuerpo = await leerErrorFuncion(error);
+    throw new Error(cuerpo?.error ?? 'No se pudo completar. Revisa tu conexión e intenta de nuevo.');
+  }
+  return data;
+}
+$('#rec-abrir').addEventListener('click', () => {
+  $('#rec-inicio').hidden = true;
+  $('#rec-paso-correo').hidden = false;
+  $('#rec-correo').value = form.elements.correo.value;
+  $('#rec-correo').focus();
+});
+async function enviarCodigo() {
+  const correo = $('#rec-correo').value.trim().toLowerCase();
+  if (!EMAIL_RE.test(correo)) return recMsg('Revisa el formato de tu correo.', 'error');
+  if (!supabase) return recMsg('El sitio aún no está conectado.', 'error');
+  $('#rec-enviar').disabled = true;
+  try {
+    const r = await invocarPublico('visitante-recurrente', { accion: 'solicitar', correo });
+    recMsg(r.mensaje, 'ok');
+    $('#rec-paso-codigo').hidden = false;
+    $('#rec-codigo').focus();
+  } catch (e) { recMsg(e.message, 'error'); } finally { $('#rec-enviar').disabled = false; }
+}
+$('#rec-enviar').addEventListener('click', enviarCodigo);
+$('#rec-reenviar').addEventListener('click', enviarCodigo);
+$('#rec-verificar').addEventListener('click', async () => {
+  const correo = $('#rec-correo').value.trim().toLowerCase();
+  const codigo = $('#rec-codigo').value.trim();
+  if (!/^\d{6}$/.test(codigo)) return recMsg('El código tiene 6 dígitos.', 'error');
+  $('#rec-verificar').disabled = true;
+  try {
+    const r = await invocarPublico('visitante-recurrente', { accion: 'verificar', correo, codigo });
+    aplicarPerfil(correo, r);
+  } catch (e) { recMsg(e.message, 'error'); } finally { $('#rec-verificar').disabled = false; }
+});
+function aplicarPerfil(correo, r) {
+  recurrente = { correo, token: r.token, perfil: r.perfil };
+  const p = r.perfil;
+  const poner = (n, v) => { if (v != null && form.elements[n]) form.elements[n].value = v; };
+  poner('nombre', p.nombre); poner('apellidos', p.apellidos); poner('empresa', p.empresa); poner('telefono', p.telefono);
+  form.elements.correo.value = correo;
+  if (p.tipo_identificacion) {
+    const radio = form.querySelector(`input[name="tipo_identificacion"][value="${CSS.escape(p.tipo_identificacion)}"]`);
+    if (radio) radio.checked = true;
+    $('#detalle-field').hidden = p.tipo_identificacion !== 'Otro';
+    poner('identificacion_detalle', p.identificacion_detalle);
+  }
+  if (p.equipo_tipo) { poner('equipo_tipo', p.equipo_tipo); $('#equipo-detalle').hidden = false; poner('equipo_marca', p.equipo_marca); poner('equipo_serie', p.equipo_serie); }
+  if (p.tiene_identificacion) { $('#foto-vacia').textContent = 'Usaremos tu identificación registrada. Si cambió, toma una nueva foto.'; $('#foto-boton').textContent = 'Tomar nueva foto'; }
+  if (p.tiene_selfie) $('#selfie-vacia').textContent = 'Usaremos tu selfie registrada. Puedes tomar una nueva.';
+  $('#guardar-field').hidden = true;
+  $('#rec-paso-correo').hidden = true;
+  $('#rec-paso-codigo').hidden = true;
+  Object.keys(rules).forEach((n) => setError(n, ''));
+  recMsg(`Listo${p.nombre ? `, ${p.nombre}` : ''}: recuperamos tus datos. Revísalos y elige fecha, horario y anfitrión.`, 'ok');
+}
+function limpiarRecurrente() {
+  recurrente = null;
+  $('#rec-inicio').hidden = false;
+  $('#rec-paso-correo').hidden = true;
+  $('#rec-paso-codigo').hidden = true;
+  $('#rec-codigo').value = '';
+  recMsg('');
+  $('#guardar-field').hidden = false;
+  $('#foto-vacia').textContent = TEXTO_FOTO;
+  $('#selfie-vacia').textContent = TEXTO_SELFIE;
+}
+
 function limpiarFoto() {
   fotoDataUrl = null;
   $('#foto-preview').hidden = true;
@@ -302,7 +410,8 @@ const rules = {
   tipo_identificacion: (v) => (v ? '' : 'Elige el tipo de identificación.'),
   identificacion_detalle: () => (form.elements.tipo_identificacion.value === 'Otro' && form.elements.identificacion_detalle.value.trim().length < 2
     ? 'Escribe qué identificación es.' : ''),
-  foto_identificacion: () => (fotoDataUrl ? '' : 'Toma o adjunta la foto de tu identificación.'),
+  foto_identificacion: () => (fotoDataUrl || recurrente?.perfil?.tiene_identificacion ? '' : 'Toma o adjunta la foto de tu identificación.'),
+  selfie: () => (!$('#sala_juntas').checked || selfieDataUrl || recurrente?.perfil?.tiene_selfie ? '' : 'Para entrar a salas de juntas toma una selfie.'),
   motivo: (v) => (v ? '' : 'Elige el motivo de tu visita.'),
   comentarios: (v) => (v.length > 500 ? 'Los comentarios admiten hasta 500 caracteres.' : ''),
   acepta_aviso: (v) => (v ? '' : 'Para registrarte, acepta el aviso de privacidad.'),
@@ -314,7 +423,7 @@ const COMPUESTOS = {
 };
 
 function getValue(name) {
-  if (COMPUESTOS[name] || name === 'persona_visita' || name === 'foto_identificacion') return '';
+  if (COMPUESTOS[name] || name === 'persona_visita' || name === 'foto_identificacion' || name === 'selfie') return '';
   const el = form.elements[name];
   if (el instanceof RadioNodeList) return el.value;
   if (el.type === 'checkbox') return el.checked;
@@ -325,6 +434,7 @@ function targetsFor(name) {
   if (name === 'motivo') return [$('#motivo-group')];
   if (name === 'tipo_identificacion') return [$('#tipo_identificacion-group')];
   if (name === 'foto_identificacion') return [$('#foto-box')];
+  if (name === 'selfie') return [$('#selfie-box')];
   if (name === 'persona_visita') return [selAnfitrion, txtPersona];
   return COMPUESTOS[name] ?? [form.elements[name]];
 }
@@ -345,7 +455,7 @@ function focusField(name) {
   const el = name === 'motivo' || name === 'tipo_identificacion' ? form.querySelector(`input[name="${name}"]`)
     : name === 'foto_identificacion' ? $('#foto-box')
       : name === 'persona_visita' && selAnfitrion.value === OTRO ? txtPersona : targetsFor(name)[0];
-  if (name === 'foto_identificacion') { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (name === 'foto_identificacion' || name === 'selfie') { (name === 'selfie' ? $('#selfie-box') : el).scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   el.focus({ preventScroll: true });
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -358,7 +468,7 @@ const campoDe = (el) => {
 
 form.addEventListener('focusout', (e) => {
   const name = campoDe(e.target);
-  if (!rules[name] || e.target.type === 'radio' || e.target.type === 'checkbox' || e.target.type === 'file') return;
+  if (!rules[name] || e.target.type === 'radio' || e.target.type === 'checkbox' || e.target.type === 'file' || !e.target.name) return;
   if (COMPUESTOS[name] || e.target.value.trim() !== '') validateField(name);
 });
 form.addEventListener('input', (e) => {
@@ -403,6 +513,9 @@ function showSuccess(nombre, correo, r) {
     img.removeAttribute('src');
     descargar.hidden = true;
   }
+  $('#exito-aprobacion').textContent = r.aprueba === 'anfitrion'
+    ? 'Tu anfitrión debe confirmar la visita; te avisaremos por correo cuando lo haga.'
+    : 'Recepción validará tu visita al llegar.';
   $('#exito-correo').textContent = r.correo_enviado
     ? `También te enviamos este pase a ${correo}. Muéstralo en recepción al llegar.`
     : 'No pudimos enviar el correo en este momento. Descarga el pase o toma una captura de pantalla para mostrarlo en recepción.';
@@ -432,6 +545,10 @@ function resetForm() {
   $('#comentarios-count').textContent = '0 / 500';
   horarioPorDefecto();
   limpiarFoto();
+  limpiarSelfie();
+  limpiarRecurrente();
+  $('#selfie-field').hidden = true;
+  $('#equipo-detalle').hidden = true;
   $('#detalle-field').hidden = true;
   txtPersona.hidden = selAnfitrion.value !== OTRO;
   successBox.hidden = true;
@@ -490,6 +607,13 @@ form.addEventListener('submit', async (e) => {
     tipo_identificacion: form.elements.tipo_identificacion.value,
     identificacion_detalle: form.elements.tipo_identificacion.value === 'Otro' ? form.elements.identificacion_detalle.value.trim() : null,
     foto_identificacion: fotoDataUrl,
+    sala_juntas: $('#sala_juntas').checked,
+    selfie: $('#sala_juntas').checked ? selfieDataUrl : null,
+    equipo_tipo: form.elements.equipo_tipo.value || null,
+    equipo_marca: form.elements.equipo_tipo.value ? form.elements.equipo_marca.value.trim() || null : null,
+    equipo_serie: form.elements.equipo_tipo.value ? form.elements.equipo_serie.value.trim() || null : null,
+    guardar_datos: $('#guardar_datos').checked,
+    token_recurrente: recurrente && recurrente.correo === correo ? recurrente.token : null,
     motivo: getValue('motivo'),
     comentarios: getValue('comentarios') || null,
     entrada: aInstante(els.fe.value, els.he.value).toISOString(),

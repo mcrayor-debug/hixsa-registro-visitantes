@@ -20,8 +20,10 @@ export const MOTIVOS = ['Reunión', 'Entrevista', 'Proveedor o servicio', 'Entre
 /** Estado real de la visita según llegada y salida registradas en recepción. */
 export function estadoVisita(v, ahora = Date.now()) {
   if (v.salida_real_at) return { texto: 'Concluida', clave: 'concluida' };
-  if (v.llegada_at) return { texto: 'En sitio', clave: 'sitio' };
-  if (ahora > new Date(v.salida).getTime()) return { texto: 'No se presentó', clave: 'ausente' };
+  if (v.llegada_at) return { texto: v.entrada_fuera_horario ? 'En sitio (autorizada)' : 'En sitio', clave: 'sitio' };
+  if (v.estado_aprobacion === 'rechazada') return { texto: 'Rechazada', clave: 'rechazada' };
+  if (ahora > new Date(v.salida).getTime()) return { texto: 'Vencido sin uso', clave: 'ausente' };
+  if (v.estado_aprobacion === 'pendiente') return { texto: 'Pendiente de aprobación', clave: 'pendiente' };
   if (ahora >= new Date(v.entrada).getTime() - 30 * 60e3) return { texto: 'Esperada', clave: 'esperada' };
   return { texto: 'Programada', clave: 'programada' };
 }
@@ -68,7 +70,10 @@ export function rangoPeriodo(rango) {
 const COLS_CSV = [['folio', 'Folio'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['empresa', 'Empresa de origen'], ['empresa_visita', 'Empresa a visitar'], ['correo', 'Correo'],
   ['telefono', 'Teléfono'], ['persona_visita', 'Visita a'], ['motivo', 'Motivo'], ['entrada', 'Entrada'],
   ['salida', 'Salida'], ['llegada_at', 'Llegada real'], ['salida_real_at', 'Salida real'],
-  ['tipo_identificacion', 'Identificación'], ['comentarios', 'Comentarios']];
+  ['tipo_identificacion', 'Identificación'], ['estado_aprobacion', 'Aprobación'], ['sala_juntas', 'Salas de juntas'],
+  ['equipo_tipo', 'Equipo'], ['equipo_marca', 'Marca del equipo'], ['equipo_serie', 'Serie del equipo'],
+  ['entrada_fuera_horario', 'Entrada autorizada fuera de horario'], ['autorizacion_motivo', 'Motivo de autorización'],
+  ['comentarios', 'Comentarios']];
 const FECHAS = new Set(['entrada', 'salida', 'llegada_at', 'salida_real_at']);
 
 export function descargarCsv(filas, nombre) {
@@ -77,7 +82,8 @@ export function descargarCsv(filas, nombre) {
     return `"${(/^[=+\-@]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
   };
   const cuerpo = filas.map((f) => COLS_CSV.map(([k]) =>
-    celda(FECHAS.has(k) ? (f[k] ? fmtCsv.format(new Date(f[k])) : '') : k === 'empresa_visita' ? f.empresas?.nombre : f[k])).join(','));
+    celda(FECHAS.has(k) ? (f[k] ? fmtCsv.format(new Date(f[k])) : '') : k === 'empresa_visita' ? f.empresas?.nombre
+      : typeof f[k] === 'boolean' ? (f[k] ? 'Sí' : 'No') : f[k])).join(','));
   const csv = '\uFEFF' + [COLS_CSV.map(([, t]) => celda(t)).join(','), ...cuerpo].join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: nombre });

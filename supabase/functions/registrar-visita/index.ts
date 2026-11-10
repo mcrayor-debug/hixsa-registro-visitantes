@@ -1,272 +1,263 @@
 // =====================================================================
 // Edge Function: registrar-visita (pública)
-// 1. Valida los datos del formulario.
-// 2. Guarda la visita (service_role).
-// 3. Genera un código QR con los datos y el horario registrado.
-// 4. Envía el pase por correo al visitante (y copia a recepción si está activado).
+// 1. Valida datos, horario, empresa a visitar y anfitrión.
+// 2. Revisa el perfil del visitante (bloqueos) y, si verificó su código de recurrente,
+//    reutiliza sus fotos guardadas.
+// 3. Guarda fotos (identificación y selfie) en el bucket privado y la visita (pendiente de aprobación).
+// 4. Envía el pase con QR al visitante y la solicitud de aprobación al anfitrión.
 // =====================================================================
 import QRCode from "npm:qrcode@1.5.4";
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
-import { EMAIL_RE, enviarCorreo, escapar } from "../_shared/correo.ts";
+import { botonCorreo, EMAIL_RE, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora, huellaPase } from "../_shared/formato.ts";
 import { filtroAuditoria } from "../_shared/auth.ts";
+import { sha256Hex, tokenAleatorio, TOKEN_RE } from "../_shared/tokens.ts";
 
 const MOTIVOS = ["Reunión", "Entrevista", "Proveedor o servicio", "Entrega o paquetería", "Otro"];
 const IDENTIFICACIONES = ["INE", "Licencia", "Pasaporte", "ID empresa", "Otro"];
+const EQUIPOS = ["Laptop", "Tablet", "Proyector", "Disco o memoria", "Otro"];
 const MAX_FOTO_BYTES = 3 * 1024 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HORA_MS = 60 * 60 * 1000;
-const AVISO_URL = "https://www.hixsa.com/sobre-nosotros/aviso-de-privacidad/";
+const MENSAJE_BLOQUEO = "No es posible registrar tu visita en este momento. Comunícate con la persona que vas a visitar.";
 
 interface Entrada {
-  nombre?: string;
-  apellidos?: string;
-  empresa_visita_id?: string;
-  empresa?: string;
-  correo?: string;
-  telefono?: string;
-  persona_visita?: string;
-  motivo?: string;
-  comentarios?: string | null;
-  entrada?: string;
-  salida?: string;
-  acepta_aviso?: boolean;
-  anfitrion_id?: string | null;
-  tipo_identificacion?: string;
-  identificacion_detalle?: string | null;
-  foto_identificacion?: string; // data URL (JPEG, PNG o WebP)
+  nombre?: string; apellidos?: string; empresa?: string; correo?: string; telefono?: string;
+  empresa_visita_id?: string; anfitrion_id?: string | null; persona_visita?: string; motivo?: string;
+  comentarios?: string | null; entrada?: string; salida?: string; acepta_aviso?: boolean;
+  tipo_identificacion?: string; identificacion_detalle?: string | null; foto_identificacion?: string | null;
+  sala_juntas?: boolean; selfie?: string | null;
+  equipo_tipo?: string | null; equipo_marca?: string | null; equipo_serie?: string | null;
+  guardar_datos?: boolean; token_recurrente?: string | null;
   sitio_web?: string; // trampa anti-bots
+}
+interface Foto { bytes: Uint8Array; tipo: string; ext: string }
+
+/** Valida una foto (data URL) por sus bytes reales. null si no se envió; texto si hay error. */
+function leerFoto(dataUrl: string | null | undefined): Foto | string | null {
+  if (!dataUrl) return null;
+  const m = String(dataUrl).match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return "La foto no es válida. Tómala de nuevo.";
+  let bytes: Uint8Array;
+  try { bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0)); } catch { return "La foto no se pudo leer. Intenta de nuevo."; }
+  if (bytes.length > MAX_FOTO_BYTES) return "La foto pesa demasiado (máximo 3 MB).";
+  const f = Array.from(bytes.slice(0, 12));
+  if (f[0] === 0xff && f[1] === 0xd8 && f[2] === 0xff) return { bytes, tipo: "image/jpeg", ext: "jpg" };
+  if (f[0] === 0x89 && f[1] === 0x50 && f[2] === 0x4e && f[3] === 0x47) return { bytes, tipo: "image/png", ext: "png" };
+  if (String.fromCharCode(...f.slice(0, 4)) === "RIFF" && String.fromCharCode(...f.slice(8, 12)) === "WEBP") return { bytes, tipo: "image/webp", ext: "webp" };
+  return "El archivo no es una imagen válida.";
 }
 
 function validar(b: Entrada) {
   const campos: Record<string, string> = {};
   const txt = (v: unknown) => String(v ?? "").trim().replace(/\s+/g, " ");
-
-  const nombreSolo = txt(b.nombre);
-  const apellidos = txt(b.apellidos);
-  const nombre = `${nombreSolo} ${apellidos}`.trim();
-  const empresaVisita = txt(b.empresa_visita_id);
-  const empresa = txt(b.empresa);
+  const nombre = txt(b.nombre), apellidos = txt(b.apellidos);
   const correo = txt(b.correo).toLowerCase();
-  const telefonoCrudo = txt(b.telefono);
-  const telefono = (telefonoCrudo.startsWith("+") ? "+" : "") + telefonoCrudo.replace(/\D/g, "");
-  const persona = txt(b.persona_visita);
-  const motivo = txt(b.motivo);
+  const telCrudo = txt(b.telefono);
+  const telefono = (telCrudo.startsWith("+") ? "+" : "") + telCrudo.replace(/\D/g, "");
+  const empresa = txt(b.empresa), persona = txt(b.persona_visita), motivo = txt(b.motivo);
   const comentarios = txt(b.comentarios) || null;
+  const empresaVisita = txt(b.empresa_visita_id), anfitrionId = txt(b.anfitrion_id);
+  const tipoId = txt(b.tipo_identificacion), detalleId = txt(b.identificacion_detalle) || null;
+  const equipoTipo = txt(b.equipo_tipo) || null, equipoMarca = txt(b.equipo_marca) || null, equipoSerie = txt(b.equipo_serie) || null;
 
-  if (nombreSolo.length < 1 || nombreSolo.length > 60) campos.nombre = "Escribe tu nombre.";
+  if (nombre.length < 1 || nombre.length > 60) campos.nombre = "Escribe tu nombre.";
   if (apellidos.length < 2 || apellidos.length > 80) campos.apellidos = "Escribe tus apellidos.";
-  if (!UUID_RE.test(empresaVisita)) campos.empresa_visita = "Elige la empresa que visitas.";
-  if (empresa.length < 2 || empresa.length > 120) campos.empresa = "Escribe el nombre de tu empresa.";
+  if (empresa.length < 2 || empresa.length > 120) campos.empresa = "Escribe tu empresa de origen.";
   if (!EMAIL_RE.test(correo) || correo.length > 254) campos.correo = "Revisa el formato del correo.";
   if (!/^\+?[0-9]{10,15}$/.test(telefono)) campos.telefono = "Escribe un teléfono de 10 a 15 dígitos.";
-  const anfitrionId = txt(b.anfitrion_id);
+  if (!UUID_RE.test(empresaVisita)) campos.empresa_visita = "Elige la empresa que visitas.";
   if (anfitrionId && !UUID_RE.test(anfitrionId)) campos.persona_visita = "Elige a quién visitas.";
   if (!anfitrionId && (persona.length < 3 || persona.length > 120)) campos.persona_visita = "Escribe a quién visitas.";
-  const tipoId = txt(b.tipo_identificacion);
-  const detalleId = txt(b.identificacion_detalle) || null;
-  if (!IDENTIFICACIONES.includes(tipoId)) campos.tipo_identificacion = "Elige el tipo de identificación.";
-  if (tipoId === "Otro" && (!detalleId || detalleId.length > 60)) campos.identificacion_detalle = "Escribe qué identificación es.";
-  const foto = leerFoto(String(b.foto_identificacion ?? ""));
-  if (typeof foto === "string") campos.foto_identificacion = foto;
   if (!MOTIVOS.includes(motivo)) campos.motivo = "Elige un motivo válido.";
   if (comentarios && comentarios.length > 500) campos.comentarios = "Máximo 500 caracteres.";
   if (b.acepta_aviso !== true) campos.acepta_aviso = "Debes aceptar el aviso de privacidad.";
+  if (!IDENTIFICACIONES.includes(tipoId)) campos.tipo_identificacion = "Elige el tipo de identificación.";
+  if (tipoId === "Otro" && (!detalleId || detalleId.length > 60)) campos.identificacion_detalle = "Escribe qué identificación es.";
+  if (equipoTipo && !EQUIPOS.includes(equipoTipo)) campos.equipo_tipo = "Elige un tipo de equipo válido.";
+  if (equipoMarca && equipoMarca.length > 60) campos.equipo_marca = "Máximo 60 caracteres.";
+  if (equipoSerie && equipoSerie.length > 80) campos.equipo_serie = "Máximo 80 caracteres.";
 
-  const entrada = new Date(String(b.entrada ?? ""));
-  const salida = new Date(String(b.salida ?? ""));
+  const entrada = new Date(String(b.entrada ?? "")), salida = new Date(String(b.salida ?? ""));
   const ahora = Date.now();
   if (isNaN(entrada.getTime())) campos.entrada = "Elige la fecha y hora de entrada.";
   else if (entrada.getTime() < ahora - 2 * HORA_MS) campos.entrada = "La entrada no puede ser en el pasado.";
   else if (entrada.getTime() > ahora + 90 * 24 * HORA_MS) campos.entrada = "Solo se aceptan visitas en los próximos 90 días.";
   if (isNaN(salida.getTime())) campos.salida = "Elige la fecha y hora de salida.";
   else if (!campos.entrada && salida <= entrada) campos.salida = "La salida debe ser después de la entrada.";
-  else if (!campos.entrada && salida.getTime() - entrada.getTime() > 7 * 24 * HORA_MS) {
-    campos.salida = "La visita puede durar máximo 7 días.";
-  }
+  else if (!campos.entrada && salida.getTime() - entrada.getTime() > 7 * 24 * HORA_MS) campos.salida = "La visita puede durar máximo 7 días.";
+
+  const foto = leerFoto(b.foto_identificacion);
+  if (typeof foto === "string") campos.foto_identificacion = foto;
+  const selfie = leerFoto(b.selfie);
+  if (typeof selfie === "string") campos.selfie = selfie;
 
   return {
     campos,
+    foto: typeof foto === "string" ? null : foto,
+    selfie: typeof selfie === "string" ? null : selfie,
     datos: {
-      nombre_completo: nombre,
-      nombre: nombreSolo,
-      apellidos,
-      empresa_visita_id: empresaVisita,
-      empresa,
-      correo,
-      telefono,
-      persona_visita: persona,
-      anfitrion_id: anfitrionId || null,
-      tipo_identificacion: tipoId,
-      identificacion_detalle: tipoId === "Otro" ? detalleId : null,
-      motivo,
-      comentarios,
+      nombre_completo: `${nombre} ${apellidos}`.trim(), nombre, apellidos, empresa, correo, telefono,
+      empresa_visita_id: empresaVisita, anfitrion_id: anfitrionId || null, persona_visita: persona, motivo, comentarios,
+      tipo_identificacion: tipoId, identificacion_detalle: tipoId === "Otro" ? detalleId : null,
+      sala_juntas: b.sala_juntas === true, equipo_tipo: equipoTipo, equipo_marca: equipoTipo ? equipoMarca : null,
+      equipo_serie: equipoTipo ? equipoSerie : null,
       entrada: isNaN(entrada.getTime()) ? null : entrada.toISOString(),
       salida: isNaN(salida.getTime()) ? null : salida.toISOString(),
       acepta_aviso: true,
     },
-    foto: typeof foto === "string" ? null : foto,
   };
-}
-
-/** Valida la foto (data URL): tipo real por sus primeros bytes y tamaño máximo. */
-function leerFoto(dataUrl: string): { bytes: Uint8Array; tipo: string; ext: string } | string {
-  const m = dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
-  if (!m) return "Toma o adjunta la foto de tu identificación.";
-  let bytes: Uint8Array;
-  try {
-    bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
-  } catch {
-    return "La foto no se pudo leer. Intenta de nuevo.";
-  }
-  if (bytes.length > MAX_FOTO_BYTES) return "La foto pesa demasiado (máximo 3 MB).";
-  const firma = Array.from(bytes.slice(0, 12));
-  const esJpeg = firma[0] === 0xff && firma[1] === 0xd8 && firma[2] === 0xff;
-  const esPng = firma[0] === 0x89 && firma[1] === 0x50 && firma[2] === 0x4e && firma[3] === 0x47;
-  const esWebp = String.fromCharCode(...firma.slice(0, 4)) === "RIFF" && String.fromCharCode(...firma.slice(8, 12)) === "WEBP";
-  if (esJpeg) return { bytes, tipo: "image/jpeg", ext: "jpg" };
-  if (esPng) return { bytes, tipo: "image/png", ext: "png" };
-  if (esWebp) return { bytes, tipo: "image/webp", ext: "webp" };
-  return "El archivo no es una imagen válida.";
-}
-
-function plantillaCorreo(v: Record<string, string>, folio: string, empresaVisita: string, logo: string) {
-  const fila = (k: string, val: string) =>
-    `<tr><td style="padding:6px 0;color:#5B6B7F;width:140px;vertical-align:top">${k}</td>` +
-    `<td style="padding:6px 0;color:#1C2A3A;font-weight:600">${escapar(val)}</td></tr>`;
-  const mismaFecha = formatoFecha(v.entrada) === formatoFecha(v.salida);
-  return `<!doctype html><html lang="es"><body style="margin:0;background:#F4F7FA;font-family:Arial,Helvetica,sans-serif">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F7FA;padding:24px 12px">
-<tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #D3DCE6">
-<tr><td style="padding:22px 28px 14px;border-bottom:4px solid #0047BA">
-  ${logo ? `<img src="${escapar(logo)}" alt="HIXSA" height="44" style="display:block;height:44px;width:auto;border:0">`
-    : `<div style="font-size:22px;font-weight:800;letter-spacing:2px;color:#0047BA">HIXSA</div>`}
-  <div style="font-size:15px;color:#5B6B7F;margin-top:8px">Tu pase de visita</div>
-</td></tr>
-<tr><td style="padding:28px">
-  <p style="margin:0 0 16px;font-size:16px;color:#1C2A3A">Hola ${escapar(v.nombre_completo.split(" ")[0])}, tu visita quedó registrada. Muestra este código en recepción al llegar.</p>
-  <div style="text-align:center;margin:20px 0">
-    <img src="cid:qr-pase" width="220" height="220" alt="Código QR del pase ${escapar(folio)}" style="display:inline-block;border:1px solid #D3DCE6;border-radius:8px">
-    <div style="font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#12365F;margin-top:10px">${escapar(folio)}</div>
-  </div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">
-    ${fila("Entrada", `${formatoFecha(v.entrada)}, ${formatoHora(v.entrada)} h`)}
-    ${fila("Salida", mismaFecha ? `${formatoHora(v.salida)} h` : `${formatoFecha(v.salida)}, ${formatoHora(v.salida)} h`)}
-    ${fila("Empresa a visitar", empresaVisita)}
-    ${fila("Visitas a", v.persona_visita)}
-    ${fila("Motivo", v.motivo)}
-    ${fila("Tu empresa", v.empresa)}
-  </table>
-  <p style="margin:22px 0 0;font-size:13px;color:#5B6B7F;line-height:1.5">
-    Torre Mitikah, piso 17. Av. Río Churubusco 601, Xoco, Benito Juárez, CDMX.<br>
-    Si no puedes ver la imagen, abre el archivo adjunto <b>pase-${escapar(folio)}.png</b>.
-  </p>
-</td></tr>
-<tr><td style="padding:16px 28px;background:#F4F7FA;font-size:12px;color:#5B6B7F">
-  Tus datos se tratan conforme al <a href="${AVISO_URL}" style="color:#12365F">aviso de privacidad de HIXSA</a>.
-</td></tr>
-</table></td></tr></table></body></html>`;
 }
 
 Deno.serve(async (req) => {
   const previo = prepararPeticion(req);
   if (previo) return previo;
-
   const body = await leerJson<Entrada>(req);
   if (!body) return json({ error: "Solicitud inválida." }, 400);
-
-  // Trampa anti-bots: respuesta aparentemente exitosa, sin guardar nada.
   if (body.sitio_web) return json({ ok: true, folio: "HX-000000-00000", correo_enviado: false }, 201);
 
-  const { campos, datos, foto } = validar(body);
+  const { campos, datos, foto, selfie } = validar(body);
   if (Object.keys(campos).length) return json({ error: "Revisa los datos marcados.", campos }, 422);
 
   const db = clienteServicio();
-
-  // Límite simple contra abuso: máximo 5 registros por correo cada 10 minutos.
-  const { count } = await db
-    .from("visitantes")
-    .select("id", { count: "exact", head: true })
-    .eq("correo", datos.correo)
-    .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+  const { count } = await db.from("visitantes").select("id", { count: "exact", head: true })
+    .eq("correo", datos.correo).gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
   if ((count ?? 0) >= 5) return json({ error: "Demasiados registros seguidos. Espera unos minutos." }, 429);
 
-  // Empresa a visitar: activa y visible (en modo auditoría solo la principal)
-  const { data: empresa } = await db.from("empresas").select("id, nombre, activa, logo_url").eq("id", datos.empresa_visita_id).maybeSingle();
+  // Perfil del visitante y bloqueos
+  const { data: persona } = await db.from("personas").select("*").eq("correo", datos.correo).maybeSingle();
+  if (persona?.estado_bloqueo === "bloqueado") return json({ error: MENSAJE_BLOQUEO }, 403);
+
+  // Token de visitante recurrente verificado (permite reutilizar sus fotos guardadas)
+  let tokenId: number | null = null;
+  if (body.token_recurrente) {
+    if (!TOKEN_RE.test(body.token_recurrente)) return json({ error: "Tu verificación no es válida. Vuelve a pedir el código." }, 422);
+    const { data: t } = await db.from("verificaciones").select("id")
+      .eq("tipo", "token").eq("correo", datos.correo).eq("hash", await sha256Hex(body.token_recurrente))
+      .is("usado_at", null).gt("expira_at", new Date().toISOString()).maybeSingle();
+    if (!t) return json({ error: "Tu verificación expiró. Vuelve a pedir el código de recurrente." }, 422);
+    tokenId = t.id;
+  }
+  const reutiliza = Boolean(tokenId && persona);
+  if (!foto && !(reutiliza && persona?.identificacion_path)) {
+    return json({ error: "Revisa los datos marcados.", campos: { foto_identificacion: "Toma o adjunta la foto de tu identificación." } }, 422);
+  }
+  if (datos.sala_juntas && !selfie && !(reutiliza && persona?.selfie_path)) {
+    return json({ error: "Revisa los datos marcados.", campos: { selfie: "Para entrar a salas de juntas toma una selfie." } }, 422);
+  }
+
+  // Empresa a visitar (activa y visible en modo auditoría) y anfitrión de esa empresa
+  const { data: empresa } = await db.from("empresas").select("id, nombre, activa").eq("id", datos.empresa_visita_id).maybeSingle();
   const soloEmpresa = await filtroAuditoria(db);
   if (!empresa || !empresa.activa || (soloEmpresa && empresa.id !== soloEmpresa)) {
     return json({ error: "Revisa los datos marcados.", campos: { empresa_visita: "Elige una empresa válida." } }, 422);
   }
-
-  // Anfitrión del directorio: el nombre se toma del servidor, no del navegador, y debe pertenecer a la empresa
+  let anfitrion: { nombre: string; area: string | null; correo: string | null } | null = null;
   if (datos.anfitrion_id) {
-    const { data: anf } = await db.from("anfitriones").select("nombre, area, activo").eq("id", datos.anfitrion_id).maybeSingle();
+    const { data: anf } = await db.from("anfitriones").select("nombre, area, correo, activo").eq("id", datos.anfitrion_id).maybeSingle();
     const { data: pertenece } = await db.from("anfitrion_empresas").select("anfitrion_id")
       .eq("anfitrion_id", datos.anfitrion_id).eq("empresa_id", empresa.id).maybeSingle();
     if (!anf || !anf.activo || !pertenece) return json({ error: "Revisa los datos marcados.", campos: { persona_visita: "Elige a quién visitas." } }, 422);
+    anfitrion = anf;
     datos.persona_visita = anf.area ? `${anf.nombre} (${anf.area})` : anf.nombre;
   }
 
-  // Foto de identificación al bucket privado (antes de guardar la visita)
+  // Fotos al bucket privado
   const mes = new Date().toISOString().slice(0, 7);
-  const rutaFoto = `${mes}/${crypto.randomUUID()}.${foto!.ext}`;
-  const { error: errFoto } = await db.storage.from("identificaciones")
-    .upload(rutaFoto, foto!.bytes, { contentType: foto!.tipo, upsert: false });
-  if (errFoto) {
-    console.error("subida de identificación", errFoto);
-    return json({ error: "No se pudo guardar la foto de tu identificación. Intenta de nuevo." }, 500);
+  const subidas: string[] = [];
+  const subir = async (f: Foto, carpeta: string) => {
+    const ruta = `${carpeta}${mes}/${crypto.randomUUID()}.${f.ext}`;
+    const { error } = await db.storage.from("identificaciones").upload(ruta, f.bytes, { contentType: f.tipo, upsert: false });
+    if (error) throw error;
+    subidas.push(ruta);
+    return ruta;
+  };
+  let rutaId: string, rutaSelfie: string | null = null;
+  try {
+    rutaId = foto ? await subir(foto, "") : persona!.identificacion_path;
+    if (datos.sala_juntas) rutaSelfie = selfie ? await subir(selfie, "selfies/") : persona!.selfie_path;
+    else if (selfie) rutaSelfie = await subir(selfie, "selfies/");
+  } catch (e) {
+    console.error("subida de fotos", e);
+    if (subidas.length) await db.storage.from("identificaciones").remove(subidas);
+    return json({ error: "No se pudieron guardar tus fotos. Intenta de nuevo." }, 500);
   }
 
-  const { data: visita, error } = await db
-    .from("visitantes")
-    .insert({ ...datos, identificacion_path: rutaFoto })
-    .select("id, folio, nombre_completo, empresa, correo, persona_visita, motivo, entrada, salida")
-    .single();
+  // Perfil: se crea si no existe. Si existe, solo se actualiza con verificación (evita suplantación).
+  const ahoraIso = new Date().toISOString();
+  let personaId = persona?.id ?? null;
+  const datosPerfil = {
+    nombre: datos.nombre, apellidos: datos.apellidos, telefono: datos.telefono, empresa: datos.empresa,
+    tipo_identificacion: datos.tipo_identificacion, identificacion_detalle: datos.identificacion_detalle,
+    identificacion_path: rutaId, selfie_path: rutaSelfie ?? persona?.selfie_path ?? null,
+    equipo_tipo: datos.equipo_tipo, equipo_marca: datos.equipo_marca, equipo_serie: datos.equipo_serie,
+  };
+  if (!persona) {
+    const { data: nueva, error } = await db.from("personas").insert({
+      correo: datos.correo, ...datosPerfil, recurrente: body.guardar_datos === true, ultima_visita_at: ahoraIso,
+    }).select("id").single();
+    if (error) console.error("perfil nuevo", error); else personaId = nueva.id;
+  } else {
+    await db.from("personas").update(reutiliza
+      ? { ...datosPerfil, recurrente: true, ultima_visita_at: ahoraIso, updated_at: ahoraIso }
+      : { ultima_visita_at: ahoraIso, ...(body.guardar_datos === true && !persona.recurrente ? { recurrente: true } : {}) })
+      .eq("id", persona.id);
+  }
+
+  // Aprobación: el anfitrión con correo recibe la solicitud; sin él, valida Recepción
+  const sitio = (Deno.env.get("PUBLIC_SITE_URL") ?? "").replace(/\/$/, "");
+  const apruebaAnfitrion = Boolean(anfitrion?.correo && sitio);
+  const tokenAprobacion = apruebaAnfitrion ? tokenAleatorio() : null;
+
+  const { data: visita, error } = await db.from("visitantes").insert({
+    ...datos, persona_id: personaId, identificacion_path: rutaId, selfie_path: rutaSelfie,
+    estado_aprobacion: "pendiente", aprobacion_token_hash: tokenAprobacion ? await sha256Hex(tokenAprobacion) : null,
+  }).select("id, folio, nombre_completo, empresa, correo, persona_visita, motivo, entrada, salida").single();
   if (error || !visita) {
     console.error("insert visitantes", error);
-    await db.storage.from("identificaciones").remove([rutaFoto]); // no dejar fotos huérfanas
+    if (subidas.length) await db.storage.from("identificaciones").remove(subidas);
     return json({ error: "No se pudo guardar el registro." }, 500);
   }
+  if (tokenId) await db.from("verificaciones").update({ usado_at: ahoraIso }).eq("id", tokenId);
 
-  // Contenido del QR: liga de validación con folio + huella de los datos y el horario.
+  // QR del pase
   const huella = await huellaPase(visita);
-  const sitio = (Deno.env.get("PUBLIC_SITE_URL") ?? "").replace(/\/$/, "");
   const contenidoQr = sitio
     ? `${sitio}/admin.html?pase=${encodeURIComponent(visita.folio)}&h=${huella}`
     : `HIXSA|${visita.folio}|${visita.nombre_completo}|${visita.entrada}|${visita.salida}|${huella}`;
-
-  const qrDataUrl: string = await QRCode.toDataURL(contenidoQr, {
-    errorCorrectionLevel: "M",
-    margin: 2,
-    width: 440,
-    color: { dark: "#12365F", light: "#FFFFFF" },
-  });
+  const qrDataUrl: string = await QRCode.toDataURL(contenidoQr, { errorCorrectionLevel: "M", margin: 2, width: 440, color: { dark: "#0047BA", light: "#FFFFFF" } });
   const qrBase64 = qrDataUrl.split(",")[1];
 
-  // Logo del correo: el configurado en el panel o el del sitio publicado
-  const { data: cfgLogo } = await db.from("configuracion").select("logo_url").eq("id", 1).maybeSingle();
-  const logoCorreo = cfgLogo?.logo_url || (sitio ? `${sitio}/img/logo-hixsa.png` : "");
-
-  // Copia a recepción (configurable desde el panel)
-  const { data: cfg } = await db
-    .from("configuracion")
-    .select("correo_recepcion, copia_recepcion")
-    .eq("id", 1)
-    .maybeSingle();
+  const logo = await logoCorreo(db);
+  const { data: cfg } = await db.from("configuracion").select("correo_recepcion, copia_recepcion").eq("id", 1).maybeSingle();
   const cc = cfg?.copia_recepcion && cfg.correo_recepcion ? [cfg.correo_recepcion] : [];
+  const fila = (k: string, val: string) =>
+    `<tr><td style="padding:6px 0;color:#5B6B7F;width:140px;vertical-align:top">${k}</td><td style="padding:6px 0;font-weight:600">${escapar(val)}</td></tr>`;
+  const mismaFecha = formatoFecha(visita.entrada) === formatoFecha(visita.salida);
+  const tablaVisita = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">
+    ${fila("Entrada", `${formatoFecha(visita.entrada)}, ${formatoHora(visita.entrada)} h`)}
+    ${fila("Salida", mismaFecha ? `${formatoHora(visita.salida)} h` : `${formatoFecha(visita.salida)}, ${formatoHora(visita.salida)} h`)}
+    ${fila("Empresa a visitar", empresa.nombre)}${fila("Visitas a", visita.persona_visita)}${fila("Motivo", visita.motivo)}${fila("Tu empresa", visita.empresa)}
+  </table>`;
 
   let correoEnviado = false;
   try {
     await enviarCorreo({
-      para: [visita.correo],
-      cc,
-      asunto: `Tu pase de visita a HIXSA (${visita.folio})`,
-      html: plantillaCorreo(visita, visita.folio, empresa.nombre, logoCorreo),
-      texto: `Tu visita a HIXSA quedó registrada. Folio ${visita.folio}. ` +
-        `Entrada: ${formatoFecha(visita.entrada)} ${formatoHora(visita.entrada)} h. ` +
-        `Salida: ${formatoFecha(visita.salida)} ${formatoHora(visita.salida)} h.`,
+      para: [visita.correo], cc,
+      asunto: `Tu pase de visita a ${empresa.nombre} (${visita.folio})`,
+      html: plantilla({
+        titulo: "Tu pase de visita", logo,
+        cuerpo: `<p style="margin:0 0 12px;font-size:16px">Hola ${escapar(datos.nombre)}, tu visita quedó registrada. Muestra este código en recepción al llegar.</p>
+          <p style="margin:0 0 16px;padding:10px 12px;background:#FFF6DB;border-radius:8px">
+            ${apruebaAnfitrion ? `Tu anfitrión debe confirmar la visita; te avisaremos por correo cuando lo haga.` : `Recepción validará tu visita al llegar.`}</p>
+          <div style="text-align:center;margin:20px 0">
+            <img src="cid:qr-pase" width="220" height="220" alt="Código QR del pase ${escapar(visita.folio)}" style="display:inline-block;border:1px solid #D3DCE6;border-radius:8px">
+            <div style="font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#0047BA;margin-top:10px">${escapar(visita.folio)}</div>
+          </div>${tablaVisita}
+          <p style="margin:18px 0 0;font-size:13px;color:#5B6B7F">Llega dentro de tu horario: fuera de él, Recepción no podrá registrar tu entrada sin autorización.</p>`,
+      }),
+      texto: `Tu visita a ${empresa.nombre} quedó registrada. Folio ${visita.folio}. Entrada: ${formatoFecha(visita.entrada)} ${formatoHora(visita.entrada)} h.`,
       adjuntos: [
         { filename: "qr-pase.png", content: qrBase64, content_type: "image/png", content_id: "qr-pase" },
         { filename: `pase-${visita.folio}.png`, content: qrBase64, content_type: "image/png" },
@@ -275,16 +266,35 @@ Deno.serve(async (req) => {
     correoEnviado = true;
     await db.from("visitantes").update({ qr_enviado_at: new Date().toISOString(), correo_error: null }).eq("id", visita.id);
   } catch (e) {
-    console.error("envío de correo", e);
+    console.error("envío del pase", e);
     await db.from("visitantes").update({ correo_error: String(e).slice(0, 300) }).eq("id", visita.id);
   }
 
+  // Solicitud de aprobación al anfitrión
+  if (apruebaAnfitrion && tokenAprobacion) {
+    const enlace = (a: string) => `${sitio}/aprobar.html?t=${tokenAprobacion}&a=${a}`;
+    const restringido = persona?.estado_bloqueo === "restringido";
+    try {
+      await enviarCorreo({
+        para: [anfitrion!.correo!],
+        asunto: `Confirma la visita de ${visita.nombre_completo} (${visita.empresa})`,
+        html: plantilla({
+          titulo: "Solicitud de aprobación de visita", logo,
+          cuerpo: `<p style="margin:0 0 12px;font-size:16px">Hola ${escapar(anfitrion!.nombre.split(" ")[0])}, <b>${escapar(visita.nombre_completo)}</b> registró una visita contigo.</p>
+            ${restringido ? `<p style="margin:0 0 12px;padding:10px 12px;background:#FBEAE8;border-radius:8px"><b>Visitante con acceso restringido.</b> Solo podrá entrar si apruebas la visita.</p>` : ""}
+            ${tablaVisita}
+            <p style="margin:18px 0 8px">¿Confirmas la visita?</p>
+            <p style="margin:0">${botonCorreo(enlace("aprobar"), "Aprobar visita")}${botonCorreo(enlace("rechazar"), "Rechazar", "#C0392B")}</p>
+            <p style="margin:16px 0 0;font-size:13px;color:#5B6B7F">Sin tu aprobación, Recepción no registrará la entrada. El enlace es personal y de un solo uso.</p>`,
+        }),
+      });
+    } catch (e) {
+      console.error("solicitud al anfitrión", e);
+    }
+  }
+
   return json({
-    ok: true,
-    folio: visita.folio,
-    entrada: visita.entrada,
-    salida: visita.salida,
-    qr: qrDataUrl,
-    correo_enviado: correoEnviado,
+    ok: true, folio: visita.folio, entrada: visita.entrada, salida: visita.salida, qr: qrDataUrl,
+    correo_enviado: correoEnviado, estado_aprobacion: "pendiente", aprueba: apruebaAnfitrion ? "anfitrion" : "recepcion",
   }, 201);
 });
