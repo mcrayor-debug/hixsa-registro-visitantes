@@ -472,3 +472,7 @@ body.admin { background: var(--hx-surface); min-height: 100vh; }
 .prueba-reportes { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--hx-line); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .prueba-reportes h3, .prueba-reportes p { width: 100%; margin: 0 !important; }
 @media (max-width: 960px) { .kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .field-medio { grid-column: auto; } }
+
+/* Botón desactivado sin procesar: sin círculo giratorio (solo aria-busy lo muestra) */
+.btn[disabled]:not([aria-busy="true"])::before { display: none; }
+.btn[disabled]:not([aria-busy="true"]) { cursor: not-allowed; opacity: 0.55; }

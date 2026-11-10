@@ -31,6 +31,7 @@ export default function FichaVisita({ folio, h, onCambio }) {
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [fuera, setFuera] = useState(null);
+  const [errorMotivo, setErrorMotivo] = useState('');
   const toast = useToast();
 
   const cargar = useCallback(async () => {
@@ -54,7 +55,7 @@ export default function FichaVisita({ folio, h, onCambio }) {
     setCargando(false);
   }, [folio, h]);
 
-  useEffect(() => { setFotos({}); setError(''); setRechazo(null); setMotivo(''); cargar(); }, [cargar]);
+  useEffect(() => { setFotos({}); setError(''); setRechazo(null); setMotivo(''); setErrorMotivo(''); cargar(); }, [cargar]);
 
   async function verFoto(clave, ruta) {
     const { data, error: err } = await supabase.storage.from('identificaciones').createSignedUrl(ruta, 300);
@@ -149,11 +150,14 @@ export default function FichaVisita({ folio, h, onCambio }) {
           {rechazo.autorizable && (
             <div className="autorizar">
               <label htmlFor="motivo-aut">Motivo de la autorización</label>
-              <textarea id="motivo-aut" rows={2} maxLength={300} value={motivo} placeholder="Ej.: llegó tarde por tráfico; confirmado con el anfitrión"
-                onChange={(e) => setMotivo(e.target.value)} />
-              <button type="button" className="btn btn-autorizar" disabled={ocupado || motivo.trim().length < 5}
-                onClick={() => accion('autorizar', { motivo: motivo.trim() })}>Autorizar entrada</button>
-              <p className="hint">Queda registrado quién autorizó, cuándo y por qué. No cuenta como llegada puntual.</p>
+              <textarea id="motivo-aut" rows={2} maxLength={300} value={motivo} placeholder="Ej.: visitante VIP, confirmado con el anfitrión"
+                aria-describedby="motivo-aut-ayuda" onChange={(e) => { setMotivo(e.target.value); setErrorMotivo(''); }} />
+              <p className="hint" id="motivo-aut-ayuda">Mínimo 5 caracteres{motivo.trim().length > 0 && motivo.trim().length < 5 ? ` (llevas ${motivo.trim().length})` : ''}. Queda registrado quién autorizó, cuándo y por qué; no cuenta como llegada puntual.</p>
+              {errorMotivo && <p className="error" role="alert">{errorMotivo}</p>}
+              <button type="button" className="btn btn-autorizar" disabled={ocupado} aria-busy={ocupado}
+                onClick={() => (motivo.trim().length < 5
+                  ? setErrorMotivo('Escribe un motivo más completo (mínimo 5 caracteres).')
+                  : accion('autorizar', { motivo: motivo.trim() }))}>{ocupado ? 'Autorizando…' : 'Autorizar entrada'}</button>
             </div>
           )}
         </section>
@@ -193,13 +197,13 @@ export default function FichaVisita({ folio, h, onCambio }) {
 
       <div className="ficha-acciones">
         {aprobable && !v.llegada_at && (
-          <button className="btn btn-aprobar" type="button" disabled={ocupado} onClick={() => accion('aprobar')}>Aprobar visita</button>
+          <button className="btn btn-aprobar" type="button" disabled={ocupado} aria-busy={ocupado} onClick={() => accion('aprobar')}>Aprobar visita</button>
         )}
         {!v.llegada_at && v.estado_aprobacion !== 'rechazada' && (
-          <button className="btn" type="button" disabled={ocupado} onClick={() => accion('llegada')}>{ocupado ? 'Validando…' : 'Registrar entrada'}</button>
+          <button className="btn" type="button" disabled={ocupado} aria-busy={ocupado} onClick={() => accion('llegada')}>{ocupado ? 'Validando…' : 'Registrar entrada'}</button>
         )}
         {v.llegada_at && !v.salida_real_at && (
-          <button className="btn" type="button" disabled={ocupado} onClick={() => accion('salida')}>{ocupado ? 'Registrando…' : 'Registrar salida'}</button>
+          <button className="btn" type="button" disabled={ocupado} aria-busy={ocupado} onClick={() => accion('salida')}>{ocupado ? 'Registrando…' : 'Registrar salida'}</button>
         )}
         {v.salida_real_at && <p className="muted">La visita ya concluyó.</p>}
         {!v.salida_real_at && new Date(v.salida).getTime() > Date.now() && v.estado_aprobacion !== 'rechazada' && (!v.origen || v.origen === 'formulario') && (
