@@ -1,13 +1,15 @@
 /* =====================================================================
    HIXSA - Registro de visitantes
-   Paleta basada en la identidad de www.hixsa.com.
+   Paleta oficial del Manual de Identidad Corporativa de HIXSA.
    Para ajustar un tono, cambia solo las variables de :root.
    ===================================================================== */
 :root {
-  --hx-navy: #12365F;        /* Azul corporativo (principal) */
-  --hx-navy-deep: #0C2747;   /* Azul oscuro (hover / sombras) */
-  --hx-cyan: #1FA6DB;        /* Azul brillante (acento) */
-  --hx-cyan-soft: #E6F4FA;   /* Acento suave (fondos destacados) */
+  --hx-navy: #0047BA;        /* Azul HIXSA (Pantone 2728 C) */
+  --hx-navy-deep: #003A99;   /* Azul oscuro (hover) */
+  --hx-cyan: #00A9E0;        /* Cian HIXSA (Pantone 2995 C, aprox.) */
+  --hx-naranja: #F38A00;     /* Naranja HIXSA (Pantone 144 C) */
+  --hx-amarillo: #FFCD00;    /* Amarillo HIXSA (Pantone 116 C) */
+  --hx-cyan-soft: #E5F5FC;   /* Cian suave (fondos) */
   --hx-ink: #1C2A3A;         /* Texto principal */
   --hx-muted: #5B6B7F;       /* Texto secundario */
   --hx-line: #D3DCE6;        /* Bordes */
@@ -16,12 +18,12 @@
   --hx-error: #C0392B;
   --hx-success: #1E8A5A;
 
-  --font-head: "Montserrat", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-body: "Open Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-head: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
 
   --radius-field: 8px;
   --radius-card: 16px;
-  --ring: 0 0 0 3px rgba(31, 166, 219, 0.3);
+  --ring: 0 0 0 3px rgba(0, 169, 224, 0.35);
 
   color-scheme: light;
 }
@@ -472,3 +474,85 @@ select:focus-visible { outline: none; border-color: var(--hx-cyan); box-shadow: 
 .btn-foto { width: auto !important; min-height: 44px; margin: 0 !important; padding: 0 1.25rem; cursor: pointer; }
 input[type="file"]:focus-visible + .btn-foto, .btn-foto:focus-within { box-shadow: var(--ring); }
 #foto_identificacion:focus-visible ~ * { outline: none; }
+
+/* =====================================================================
+   v4: bienvenida por empresa, logos y botón de acceso al panel
+   ===================================================================== */
+body { font-size: 1.0625rem; }
+.bienvenida { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: var(--hx-white); }
+.bienvenida-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  padding: calc(1rem + env(safe-area-inset-top, 0px)) clamp(1rem, 4vw, 3rem) 1rem;
+  border-bottom: 4px solid var(--hx-navy);
+}
+.logo-sitio { display: block; height: 48px; width: auto; }
+.btn-personal {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 1.125rem;
+  font: 700 0.9375rem var(--font-body); color: var(--hx-white); text-decoration: none;
+  background: var(--hx-navy); border-radius: 999px;
+}
+.btn-personal:hover { background: var(--hx-navy-deep); }
+.btn-personal:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.bienvenida-cuerpo { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: clamp(2rem, 6vw, 4.5rem) clamp(1rem, 4vw, 3rem); }
+.bienvenida-kicker { margin: 0; font-weight: 700; font-size: 1.125rem; color: var(--hx-naranja); }
+.bienvenida-titulo { margin: 0.25rem 0 0.75rem; font: 700 clamp(2.25rem, 5vw, 3.5rem) var(--font-head); line-height: 1.05; color: var(--hx-navy); }
+.bienvenida-texto { margin: 0 0 2.25rem; max-width: 46ch; font-size: 1.1875rem; color: var(--hx-muted); }
+
+.empresas-botones { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; }
+.empresa-boton {
+  display: grid; justify-items: center; align-content: center; gap: 1rem;
+  min-height: 190px; padding: 1.5rem 1.25rem; font: inherit; color: var(--hx-ink); cursor: pointer;
+  background: var(--hx-white); border: 2px solid var(--hx-line); border-radius: var(--radius-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.empresa-boton:hover { border-color: var(--hx-navy); box-shadow: 0 10px 28px rgba(0, 71, 186, 0.12); transform: translateY(-2px); }
+.empresa-boton:focus-visible { outline: none; border-color: var(--hx-cyan); box-shadow: var(--ring); }
+.empresa-logo { display: block; max-width: 100%; max-height: 72px; width: auto; height: auto; object-fit: contain; }
+.empresa-nombre-logo {
+  display: grid; place-items: center; min-width: 160px; height: 72px; padding: 0 1.25rem;
+  font: 700 1.75rem var(--font-head); letter-spacing: 0.04em; color: var(--hx-navy);
+  border: 2px dashed var(--hx-line); border-radius: var(--radius-field);
+}
+.empresa-pie { font-weight: 700; color: var(--hx-navy); }
+.empresa-boton-grande { max-width: 520px; min-height: 280px; padding: 2.5rem; }
+.empresa-boton-grande .empresa-logo { max-height: 120px; }
+.empresa-boton-grande .empresa-pie {
+  display: inline-flex; align-items: center; min-height: 48px; padding: 0 2rem;
+  color: var(--hx-white); background: var(--hx-navy); border-radius: 999px;
+}
+
+.empresas-otras { margin-top: 2rem; }
+.empresas-otras-titulo { margin: 0 0 0.75rem; font-weight: 700; color: var(--hx-muted); }
+.empresas-lista { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.5rem; }
+.empresa-fila {
+  width: 100%; min-height: 52px; padding: 0 1rem; font: 600 1.0625rem var(--font-body); text-align: left; color: var(--hx-ink);
+  background: var(--hx-surface); border: 1.5px solid transparent; border-radius: var(--radius-field); cursor: pointer;
+}
+.empresa-fila:hover { border-color: var(--hx-navy); }
+.empresa-fila:focus-visible { outline: none; box-shadow: var(--ring); }
+.bienvenida-pie { padding: 1.25rem clamp(1rem, 4vw, 3rem) calc(1.25rem + env(safe-area-inset-bottom, 0px)); font-size: 0.875rem; color: var(--hx-muted); border-top: 1px solid var(--hx-line); }
+
+/* Panel lateral del registro */
+.panel-top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.logo-panel { display: block; height: 40px; width: auto; }
+.panel-top .staff-link {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 0.875rem; text-decoration: none;
+  color: var(--hx-white); border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 999px; font-weight: 600;
+}
+.panel-top .staff-link:hover { background: rgba(255, 255, 255, 0.12); }
+.visita-a { margin: 0 !important; font-size: 0.9375rem; color: rgba(255, 255, 255, 0.75); }
+.cambiar-empresa {
+  margin: 0.25rem 0 1rem; padding: 0; font: 600 0.9375rem var(--font-body); color: var(--hx-amarillo);
+  background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.cambiar-empresa:focus-visible { outline: 2px solid var(--hx-amarillo); outline-offset: 2px; }
+.checkin-time { color: var(--hx-amarillo); }
+
+@media (max-width: 640px) {
+  .logo-sitio { height: 38px; }
+  .empresas-botones { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .empresa-boton { min-height: 140px; padding: 1rem 0.75rem; }
+  .empresa-nombre-logo { min-width: 0; width: 100%; font-size: 1.25rem; height: 56px; }
+  .empresa-boton-grande { grid-column: 1 / -1; min-height: 220px; }
+}

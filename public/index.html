@@ -5,13 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Registro de visitantes | HIXSA</title>
   <meta name="description" content="Registra tu visita a las oficinas de HIXSA en menos de un minuto.">
-  <meta name="theme-color" content="#12365F">
+  <meta name="theme-color" content="#0047BA">
   <meta name="robots" content="noindex">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312365F'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' fill='%231FA6DB' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 
   <!-- config.js se genera con `npm run build` a partir de las variables de entorno -->
@@ -19,14 +16,45 @@
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <div class="layout">
+  <!-- ===================== Bienvenida: elegir empresa ===================== -->
+  <div class="bienvenida" id="vista-bienvenida">
+    <header class="bienvenida-header">
+      <img class="logo-sitio" src="img/logo-hixsa.png" alt="HIXSA" width="180" height="48" data-logo="color">
+      <a class="btn-personal" href="/admin/">Acceso para personal</a>
+    </header>
+
+    <main class="bienvenida-cuerpo">
+      <p class="bienvenida-kicker">Bienvenido</p>
+      <h1 class="bienvenida-titulo">Registra tu visita</h1>
+      <p class="bienvenida-texto" id="bienvenida-texto">Elige la empresa que vienes a visitar. Al terminar recibirás en tu correo un pase con código QR para mostrar en recepción.</p>
+
+      <div class="empresas-botones" id="empresas-botones" aria-label="Empresas"></div>
+      <div class="empresas-otras" id="empresas-otras" hidden>
+        <p class="empresas-otras-titulo">Otras empresas</p>
+        <ul class="empresas-lista" id="empresas-lista"></ul>
+      </div>
+      <p class="status" id="bienvenida-estado" role="alert" hidden></p>
+    </main>
+
+    <footer class="bienvenida-pie">
+      Torre Mitikah, piso 17. Av. Río Churubusco 601, Xoco, Benito Juárez, CDMX
+    </footer>
+  </div>
+
+  <!-- ===================== Registro ===================== -->
+  <div class="layout" id="vista-registro" hidden>
 
     <!-- Panel de marca -->
     <aside class="panel" aria-label="Información de la visita">
-      <a class="wordmark" href="https://www.hixsa.com" target="_blank" rel="noopener">HIXSA</a>
+      <div class="panel-top">
+        <img class="logo-panel" src="img/logo-hixsa-blanco.png" alt="HIXSA" width="150" height="40" data-logo="blanco">
+        <a class="staff-link" href="/admin/">Acceso para personal</a>
+      </div>
 
       <div class="panel-intro">
-        <h1>Te damos la bienvenida a HIXSA</h1>
+        <p class="visita-a">Visitas a</p>
+        <h1 id="empresa-elegida">HIXSA</h1>
+        <button type="button" class="cambiar-empresa" id="cambiar-empresa">Cambiar empresa</button>
         <p>Registra tu visita y recibe en tu correo un pase con código QR para mostrar en recepción.</p>
       </div>
 
@@ -41,7 +69,6 @@
         Torre Mitikah, piso 17<br>
         Av. Río Churubusco 601, Xoco, Benito Juárez, CDMX
       </address>
-      <a class="staff-link" href="admin.html">Acceso para personal de HIXSA</a>
     </aside>
 
     <!-- Formulario -->
@@ -57,19 +84,27 @@
           <fieldset>
             <legend>Tus datos</legend>
 
-            <div class="field">
-              <label for="nombre_completo">Nombre completo</label>
-              <input id="nombre_completo" name="nombre_completo" type="text" autocomplete="name"
-                     maxlength="120" required aria-describedby="nombre_completo-error">
-              <p class="error" id="nombre_completo-error" aria-live="polite"></p>
+            <div class="grid-2">
+              <div class="field">
+                <label for="nombre">Nombre(s)</label>
+                <input id="nombre" name="nombre" type="text" autocomplete="given-name"
+                       maxlength="60" required aria-describedby="nombre-error">
+                <p class="error" id="nombre-error" aria-live="polite"></p>
+              </div>
+              <div class="field">
+                <label for="apellidos">Apellidos</label>
+                <input id="apellidos" name="apellidos" type="text" autocomplete="family-name"
+                       maxlength="80" required aria-describedby="apellidos-error">
+                <p class="error" id="apellidos-error" aria-live="polite"></p>
+              </div>
             </div>
 
             <div class="grid-2">
               <div class="field">
-                <label for="empresa">Empresa</label>
+                <label for="empresa">Empresa de origen</label>
                 <input id="empresa" name="empresa" type="text" autocomplete="organization"
                        maxlength="120" required aria-describedby="empresa-hint empresa-error">
-                <p class="hint" id="empresa-hint">Si vienes por tu cuenta, escribe “Particular”.</p>
+                <p class="hint" id="empresa-hint">De dónde vienes. Si vienes por tu cuenta escribe “Particular”; si entregas paquetes, “Repartidor”.</p>
                 <p class="error" id="empresa-error" aria-live="polite"></p>
               </div>
 

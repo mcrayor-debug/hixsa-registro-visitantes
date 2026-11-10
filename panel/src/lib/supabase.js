@@ -18,7 +18,7 @@ export async function invocar(nombre, body) {
 
 export const CAMPOS_VISITA = 'id, folio, nombre_completo, empresa, correo, telefono, persona_visita, anfitrion_id, motivo, comentarios, '
   + 'entrada, salida, llegada_at, salida_real_at, anfitrion_avisado_at, tipo_identificacion, identificacion_detalle, '
-  + 'identificacion_path, qr_enviado_at, correo_error';
+  + 'identificacion_path, qr_enviado_at, correo_error, nombre, apellidos, empresa_visita_id, empresas(nombre)';
 
 const limpiar = (s) => (s ?? '').replace(/[,()*%\\]/g, ' ').trim().slice(0, 80);
 
@@ -29,6 +29,7 @@ export function consultaVisitas(f = {}, campos = CAMPOS_VISITA) {
   if (f.hasta) q = q.lte('entrada', `${f.hasta}T23:59:59.999${OFFSET}`);
   if (limpiar(f.empresa)) q = q.ilike('empresa', `%${limpiar(f.empresa)}%`);
   if (f.motivo) q = q.eq('motivo', f.motivo);
+  if (f.empresa_visita_id) q = q.eq('empresa_visita_id', f.empresa_visita_id);
   const t = limpiar(f.texto);
   if (t) q = q.or(['nombre_completo', 'correo', 'folio', 'persona_visita'].map((c) => `${c}.ilike.%${t}%`).join(','));
   return q;

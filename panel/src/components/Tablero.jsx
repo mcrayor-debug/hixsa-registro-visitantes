@@ -3,7 +3,8 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { consultaVisitas } from '../lib/supabase.js';
 import { diaCDMX, estadoVisita, fmtDia, horaCDMX, rangoPeriodo } from '../lib/formato.js';
 
-const AZUL = '#12365F', CIAN = '#1FA6DB', GRIS = '#C5D0DC';
+// Paleta del Manual de Identidad Corporativa de HIXSA
+const AZUL = '#0047BA', CIAN = '#00A9E0', NARANJA = '#F38A00', AMARILLO = '#FFCD00';
 const PERIODOS = [['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días'], ['mes', 'Este mes'], ['mes-anterior', 'Mes anterior']];
 
 function contar(lista, clave) {
@@ -12,17 +13,18 @@ function contar(lista, clave) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-export default function Tablero() {
+export default function Tablero({ empresas = [], auditoria = false }) {
+  const [empresa, setEmpresa] = useState('');
   const [periodo, setPeriodo] = useState('7d');
   const [filas, setFilas] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setFilas(null);
-    consultaVisitas(rangoPeriodo(periodo), 'folio, empresa, persona_visita, motivo, entrada, salida, llegada_at, salida_real_at')
+    consultaVisitas({ ...rangoPeriodo(periodo), empresa_visita_id: empresa || undefined }, 'folio, empresa, persona_visita, motivo, entrada, salida, llegada_at, salida_real_at')
       .order('entrada', { ascending: true }).limit(5000)
       .then(({ data, error: e }) => { if (e) setError('No se pudieron cargar los datos.'); setFilas(data ?? []); });
-  }, [periodo]);
+  }, [periodo, empresa]);
 
   const d = useMemo(() => {
     if (!filas) return null;
@@ -68,6 +70,13 @@ export default function Tablero() {
         {PERIODOS.map(([id, texto]) => (
           <button key={id} type="button" className="chip-btn" aria-pressed={periodo === id} onClick={() => setPeriodo(id)}>{texto}</button>
         ))}
+        <label className="tablero-empresa">
+          <span className="sr-only">Empresa a visitar</span>
+          <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} aria-label="Empresa a visitar">
+            {!auditoria && <option value="">Todas las empresas</option>}
+            {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+        </label>
       </div>
       {error && <p className="status">{error}</p>}
       {!d ? <p className="muted">Cargando tablero…</p> : (
@@ -89,8 +98,8 @@ export default function Tablero() {
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: 13 }} />
                 <Bar isAnimationActive={false} dataKey="Asistieron" stackId="a" fill={AZUL} />
-                <Bar isAnimationActive={false} dataKey="No se presentaron" stackId="a" fill={CIAN} />
-                <Bar isAnimationActive={false} dataKey="Pendientes" stackId="a" fill={GRIS} radius={[4, 4, 0, 0]} />
+                <Bar isAnimationActive={false} dataKey="No se presentaron" stackId="a" fill={NARANJA} />
+                <Bar isAnimationActive={false} dataKey="Pendientes" stackId="a" fill={AMARILLO} radius={[4, 4, 0, 0]} />
               </BarChart>
             </Grafica>
             <Grafica titulo="Hora de llegada">

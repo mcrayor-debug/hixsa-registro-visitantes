@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { consultaVisitas, invocar } from '../lib/supabase.js';
 import { descargarCsv, EMAIL_RE, estadoVisita, fmtFechaHora, listaCorreos, MOTIVOS, rangoPeriodo } from '../lib/formato.js';
+import { ALCANCES, alcanceDe, puedeExportar } from '../lib/permisos.js';
 import FichaVisita from './FichaVisita.jsx';
 import { Dialogo, Estado, Mensaje, useToast } from './ui.jsx';
 
 const LIMITE = 1000;
 const RANGOS = [['hoy', 'Hoy'], ['semana', 'Próximos 7 días'], ['mes', 'Este mes'], ['mes-anterior', 'Mes anterior']];
 
-export default function Consultas({ config }) {
+export default function Consultas({ config, perfil, empresas = [] }) {
   const [rango, setRango] = useState('hoy');
-  const [f, setF] = useState(() => ({ ...rangoPeriodo('hoy'), empresa: '', motivo: '', texto: '' }));
+  const [f, setF] = useState(() => ({ ...rangoPeriodo('hoy'), empresa: '', motivo: '', texto: '', empresa_visita_id: '' }));
+  const exporta = puedeExportar(perfil);
+  const alcance = alcanceDe(perfil);
   const [filas, setFilas] = useState(null);
   const [total, setTotal] = useState(0);
   const [aplicados, setAplicados] = useState(f);
@@ -41,7 +44,12 @@ export default function Consultas({ config }) {
         <div className="filtros-grid">
           <div className="field"><label htmlFor="f-desde">Desde</label><input id="f-desde" type="date" value={f.desde} onChange={cambiar('desde')} /></div>
           <div className="field"><label htmlFor="f-hasta">Hasta</label><input id="f-hasta" type="date" value={f.hasta} onChange={cambiar('hasta')} /></div>
-          <div className="field"><label htmlFor="f-empresa">Empresa</label><input id="f-empresa" type="text" maxLength={80} value={f.empresa} onChange={cambiar('empresa')} /></div>
+          <div className="field"><label htmlFor="f-empresa-visita">Empresa a visitar</label>
+            <select id="f-empresa-visita" value={f.empresa_visita_id} onChange={cambiar('empresa_visita_id')}>
+              {!config?.modo_auditoria && <option value="">Todas</option>}
+              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select></div>
+          <div className="field"><label htmlFor="f-empresa">Empresa de origen</label><input id="f-empresa" type="text" maxLength={80} value={f.empresa} onChange={cambiar('empresa')} /></div>
           <div className="field"><label htmlFor="f-motivo">Motivo</label>
             <select id="f-motivo" value={f.motivo} onChange={cambiar('motivo')}><option value="">Todos</option>{MOTIVOS.map((m) => <option key={m}>{m}</option>)}</select></div>
           <div className="field field-wide"><label htmlFor="f-texto">Buscar</label>
@@ -55,9 +63,11 @@ export default function Consultas({ config }) {
           {filas === null ? 'Buscando…' : n === 0 ? 'Sin resultados' : total > n ? `Mostrando ${n} de ${total} visitas` : `${n} ${n === 1 ? 'visita' : 'visitas'}`}
         </p>
         <div className="acciones">
-          <button className="btn btn-secondary btn-compact" type="button" disabled={!n}
-            onClick={() => descargarCsv(filas, `visitas_${aplicados.desde ?? ''}_${aplicados.hasta ?? ''}.csv`)}>Descargar CSV</button>
-          <button className="btn btn-compact" type="button" disabled={!n} onClick={() => setReporte(true)}>Enviar por correo</button>
+          {exporta && <>
+            <button className="btn btn-secondary btn-compact" type="button" disabled={!n}
+              onClick={() => descargarCsv(filas, `visitas_${aplicados.desde ?? ''}_${aplicados.hasta ?? ''}.csv`)}>Descargar CSV</button>
+            <button className="btn btn-compact" type="button" disabled={!n} onClick={() => setReporte(true)}>Enviar por correo</button>
+          </>}
         </div>
       </div>
 
@@ -70,7 +80,7 @@ export default function Consultas({ config }) {
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setFicha(v.folio))}>
                 <td className="mono">{v.folio}</td>
                 <td><strong>{v.nombre_completo}</strong><br /><span className="muted small">{v.empresa}</span></td>
-                <td>{v.persona_visita}</td>
+                <td>{v.persona_visita}<br /><span className="muted small">{v.empresas?.nombre}</span></td>
                 <td>{v.motivo}</td>
                 <td className="nowrap">{fmtFechaHora.format(new Date(v.entrada))}</td>
                 <td className="nowrap">{v.llegada_at ? fmtFechaHora.format(new Date(v.llegada_at)) : '—'}</td>
@@ -85,7 +95,8 @@ export default function Consultas({ config }) {
         </table>
         {filas && !n && <p className="vacio">No hay visitas con estos filtros. Prueba con otro periodo.</p>}
       </div>
-      <p className="hint">Haz clic en una visita para ver su ficha, su identificación y registrar llegada o salida.</p>
+      <p className="hint">Haz clic en una visita para ver su ficha, su identificación y registrar llegada o salida.
+        {alcance !== 'sin_limite' && <> Tu rol consulta: <strong>{ALCANCES[alcance]}</strong>.</>}</p>
 
       <Dialogo abierto={Boolean(ficha)} onCerrar={() => setFicha(null)} titulo="Ficha de la visita" ancho={620}>
         {ficha && <FichaVisita folio={ficha} onCambio={() => buscar(aplicados)} />}

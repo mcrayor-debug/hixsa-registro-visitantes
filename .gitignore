@@ -14,3 +14,7 @@ reportes/
 
 # Build
 dist/
+
+# Archivos de importación (traen datos personales; nunca se suben)
+importaciones/
+*.csv

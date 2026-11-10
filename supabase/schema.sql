@@ -3,6 +3,8 @@
 -- Esquema completo para Supabase (PostgreSQL).
 -- Ejecutar completo en: Supabase > SQL Editor > New query > Run
 -- Es idempotente: sirve para instalación nueva y para actualizar la v1 o la v2.
+-- DESPUÉS de este archivo, ejecuta en orden los de supabase/migrations/ (v4 en adelante)
+-- y al final supabase/crear-admin.sql para el primer SUPERADMIN.
 -- =====================================================================
 
 -- 0) FOLIO LEGIBLE ------------------------------------------------------

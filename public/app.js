@@ -30,12 +30,9 @@ const comentarios = $('#comentarios');
 const selAnfitrion = $('#anfitrion');
 const txtPersona = $('#persona_visita');
 
-async function cargarAnfitriones() {
-  let lista = [];
-  if (supabase) {
-    const { data } = await supabase.from('anfitriones').select('id, nombre, area').order('nombre');
-    lista = data ?? [];
-  }
+/** Llena la lista de anfitriones con los de la empresa elegida. */
+function cargarAnfitriones() {
+  const lista = (publico.anfitriones ?? []).filter((a) => !empresaElegida || (a.empresas ?? []).includes(empresaElegida.id));
   const opciones = [new Option(lista.length ? 'Elige a la persona' : 'Escribe a quién visitas', '')];
   lista.forEach((a) => opciones.push(new Option(a.area ? `${a.nombre} (${a.area})` : a.nombre, a.id)));
   opciones.push(new Option('Otra persona o área', OTRO));
@@ -48,6 +45,100 @@ function mostrarOtraPersona() {
   if (otro) txtPersona.focus({ preventScroll: true });
 }
 selAnfitrion.addEventListener('change', () => { mostrarOtraPersona(); validateField('persona_visita'); });
+
+// ---------- Bienvenida: empresas y logo (datos públicos de config_publica) ----------
+const LOGO_COLOR = 'img/logo-hixsa.png';
+let publico = { modo_auditoria: false, logo_url: null, empresas: [], anfitriones: [] };
+let empresaElegida = null;
+
+function mostrarVista(nombre) {
+  $('#vista-bienvenida').hidden = nombre !== 'bienvenida';
+  $('#vista-registro').hidden = nombre !== 'registro';
+  window.scrollTo({ top: 0 });
+}
+
+/** Tarjeta de empresa: su logo si lo tiene; si no, su nombre en un recuadro. */
+function tarjetaEmpresa(e, grande) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = grande ? 'empresa-boton empresa-boton-grande' : 'empresa-boton';
+  b.setAttribute('aria-label', `Visitar ${e.nombre}`);
+  const logo = e.logo_url || (e.es_principal ? (publico.logo_url || LOGO_COLOR) : null);
+  if (logo) {
+    const img = document.createElement('img');
+    img.src = logo;
+    img.alt = '';
+    img.className = 'empresa-logo';
+    b.append(img);
+  } else {
+    const t = document.createElement('span');
+    t.className = 'empresa-nombre-logo';
+    t.textContent = e.nombre;
+    b.append(t);
+  }
+  const pie = document.createElement('span');
+  pie.className = 'empresa-pie';
+  pie.textContent = grande ? 'Registrarse' : e.nombre;
+  b.append(pie);
+  b.addEventListener('click', () => elegirEmpresa(e));
+  return b;
+}
+
+function pintarBienvenida() {
+  const botones = $('#empresas-botones');
+  const lista = $('#empresas-lista');
+  const principal = publico.empresas.find((e) => e.es_principal) ?? publico.empresas[0];
+  if (publico.modo_auditoria) {
+    // Modo auditoría: solo HIXSA, como un solo botón grande
+    botones.replaceChildren(...(principal ? [tarjetaEmpresa(principal, true)] : []));
+    $('#empresas-otras').hidden = true;
+    $('#bienvenida-texto').textContent = 'Toca el logotipo para registrar tu visita. Al terminar recibirás en tu correo un pase con código QR.';
+  } else {
+    botones.replaceChildren(...publico.empresas.filter((e) => e.mostrar_como === 'boton').map((e) => tarjetaEmpresa(e, false)));
+    const otras = publico.empresas.filter((e) => e.mostrar_como !== 'boton');
+    lista.replaceChildren(...otras.map((e) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'empresa-fila';
+      b.textContent = e.nombre;
+      b.addEventListener('click', () => elegirEmpresa(e));
+      li.append(b);
+      return li;
+    }));
+    $('#empresas-otras').hidden = !otras.length;
+  }
+  if (!publico.empresas.length) {
+    const box = $('#bienvenida-estado');
+    box.textContent = 'No hay empresas configuradas. Avisa en recepción.';
+    box.hidden = false;
+  }
+}
+
+function elegirEmpresa(e) {
+  empresaElegida = e;
+  $('#empresa-elegida').textContent = e.nombre;
+  $('#cambiar-empresa').hidden = publico.modo_auditoria;
+  cargarAnfitriones();
+  mostrarVista('registro');
+  form.elements.nombre.focus({ preventScroll: true });
+}
+$('#cambiar-empresa').addEventListener('click', () => mostrarVista('bienvenida'));
+
+async function cargarPublico() {
+  if (supabase) {
+    const { data, error } = await supabase.rpc('config_publica');
+    if (!error && data) publico = data;
+  }
+  // Logo configurado en el panel (si existe) para la bienvenida
+  if (publico.logo_url) document.querySelectorAll('[data-logo="color"]').forEach((img) => { img.src = publico.logo_url; });
+  pintarBienvenida();
+  if (!supabase) {
+    const box = $('#bienvenida-estado');
+    box.textContent = 'El sitio aún no está conectado. Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY.';
+    box.hidden = false;
+  }
+}
 
 // ---------- Foto de identificación ----------
 let fotoDataUrl = null;
@@ -177,7 +268,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const digits = (v) => v.replace(/\D/g, '');
 
 const rules = {
-  nombre_completo: (v) => (v.length < 3 ? 'Escribe tu nombre y apellido.' : ''),
+  nombre: (v) => (v.length < 1 ? 'Escribe tu nombre.' : ''),
+  apellidos: (v) => (v.length < 2 ? 'Escribe tus apellidos.' : ''),
   empresa: (v) => (v.length < 2 ? 'Escribe el nombre de tu empresa, o “Particular”.' : ''),
   telefono: (v) => {
     const n = digits(v).length;
@@ -345,7 +437,7 @@ function resetForm() {
   successBox.hidden = true;
   form.hidden = false;
   window.scrollTo({ top: 0 });
-  form.elements.nombre_completo.focus({ preventScroll: true });
+  mostrarVista('bienvenida');
 }
 $('#nuevo').addEventListener('click', resetForm);
 
@@ -384,10 +476,12 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
-  const nombre = getValue('nombre_completo');
+  const nombre = getValue('nombre');
   const correo = getValue('correo').toLowerCase();
   const body = {
-    nombre_completo: nombre,
+    nombre,
+    apellidos: getValue('apellidos'),
+    empresa_visita_id: empresaElegida?.id ?? null,
     empresa: getValue('empresa'),
     correo,
     telefono: getValue('telefono'),
@@ -409,6 +503,12 @@ form.addEventListener('submit', async (e) => {
     const { data, error } = await supabase.functions.invoke('registrar-visita', { body });
     if (error) {
       const cuerpo = await leerErrorFuncion(error);
+      if (cuerpo?.campos?.empresa_visita) {
+        mostrarVista('bienvenida');
+        const box = $('#bienvenida-estado');
+        box.textContent = 'Esa empresa ya no está disponible. Elige otra.';
+        box.hidden = false;
+      }
       if (cuerpo?.campos) {
         Object.entries(cuerpo.campos).forEach(([campo, msg]) => rules[campo] && setError(campo, msg));
         const primero = Object.keys(cuerpo.campos).find((c) => rules[c]);
@@ -427,4 +527,4 @@ form.addEventListener('submit', async (e) => {
 });
 
 horarioPorDefecto();
-cargarAnfitriones();
+cargarPublico();

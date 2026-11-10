@@ -65,7 +65,7 @@ export function rangoPeriodo(rango) {
   return { desde: hoy, hasta: hoy };
 }
 
-const COLS_CSV = [['folio', 'Folio'], ['nombre_completo', 'Nombre'], ['empresa', 'Empresa'], ['correo', 'Correo'],
+const COLS_CSV = [['folio', 'Folio'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['empresa', 'Empresa de origen'], ['empresa_visita', 'Empresa a visitar'], ['correo', 'Correo'],
   ['telefono', 'Teléfono'], ['persona_visita', 'Visita a'], ['motivo', 'Motivo'], ['entrada', 'Entrada'],
   ['salida', 'Salida'], ['llegada_at', 'Llegada real'], ['salida_real_at', 'Salida real'],
   ['tipo_identificacion', 'Identificación'], ['comentarios', 'Comentarios']];
@@ -77,7 +77,7 @@ export function descargarCsv(filas, nombre) {
     return `"${(/^[=+\-@]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
   };
   const cuerpo = filas.map((f) => COLS_CSV.map(([k]) =>
-    celda(FECHAS.has(k) ? (f[k] ? fmtCsv.format(new Date(f[k])) : '') : f[k])).join(','));
+    celda(FECHAS.has(k) ? (f[k] ? fmtCsv.format(new Date(f[k])) : '') : k === 'empresa_visita' ? f.empresas?.nombre : f[k])).join(','));
   const csv = '\uFEFF' + [COLS_CSV.map(([, t]) => celda(t)).join(','), ...cuerpo].join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: nombre });

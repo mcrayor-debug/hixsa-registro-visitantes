@@ -5,6 +5,7 @@ export interface Filtros {
   empresa?: string;
   motivo?: string;
   texto?: string;
+  empresa_visita_id?: string;
 }
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -17,6 +18,7 @@ export function aplicarFiltros(q: any, f: Filtros) {
   const empresa = limpiar(f.empresa);
   if (empresa) q = q.ilike("empresa", `%${empresa}%`);
   if (f.motivo) q = q.eq("motivo", f.motivo);
+  if (f.empresa_visita_id && /^[0-9a-f-]{36}$/i.test(f.empresa_visita_id)) q = q.eq("empresa_visita_id", f.empresa_visita_id);
   const texto = limpiar(f.texto);
   if (texto) {
     q = q.or(

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase, configurado } from './lib/supabase.js';
+import { puede, puedeConfigurar } from './lib/permisos.js';
 import Login from './components/Login.jsx';
 import Recepcion from './components/Recepcion.jsx';
 import Tablero from './components/Tablero.jsx';
@@ -8,51 +9,64 @@ import Configuracion from './components/Configuracion.jsx';
 import { Dialogo, Mensaje, useToast } from './components/ui.jsx';
 
 const PESTANAS = [
-  { id: 'recepcion', texto: 'Recepción' },
-  { id: 'tablero', texto: 'Tablero' },
-  { id: 'consultas', texto: 'Consultas' },
-  { id: 'configuracion', texto: 'Configuración', soloAdmin: true },
+  { id: 'recepcion', texto: 'Recepción', permitido: (p) => puede(p, 'recepcion') },
+  { id: 'tablero', texto: 'Tablero', permitido: (p) => puede(p, 'tablero') },
+  { id: 'consultas', texto: 'Consultas', permitido: (p) => puede(p, 'consultas') },
+  { id: 'configuracion', texto: 'Configuración', permitido: puedeConfigurar },
 ];
+const LOGO_BLANCO = '/img/logo-hixsa-blanco.png';
 
 export default function App() {
   const [perfil, setPerfil] = useState(null);
   const [config, setConfig] = useState(null);
+  const [empresas, setEmpresas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(configurado ? '' : 'El panel no está configurado: falta config.js (SUPABASE_URL y SUPABASE_ANON_KEY).');
   const pase = useMemo(() => {
     const p = new URLSearchParams(location.search);
     return p.get('pase') ? { folio: p.get('pase').toUpperCase(), h: p.get('h') } : null;
   }, []);
-  const [tab, setTab] = useState(() => {
-    const h = location.hash.slice(1);
-    return pase ? 'recepcion' : PESTANAS.some((t) => t.id === h) ? h : 'recepcion';
-  });
+  const [tab, setTab] = useState(() => (pase ? 'recepcion' : location.hash.slice(1) || 'recepcion'));
+
+  const pestanas = PESTANAS.filter((t) => perfil && t.permitido(perfil));
+
+  /** Configuración general y empresas visibles (en modo auditoría, solo la principal). */
+  const recargarContexto = useCallback(async () => {
+    const [{ data: c }, { data: e }] = await Promise.all([
+      supabase.from('configuracion').select('*').eq('id', 1).maybeSingle(),
+      supabase.from('empresas').select('id, nombre, logo_url, mostrar_como, orden, activa, es_principal').order('orden').order('nombre'),
+    ]);
+    setConfig(c);
+    setEmpresas(e ?? []);
+  }, []);
 
   useEffect(() => {
     if (!supabase) { setCargando(false); return undefined; }
     supabase.auth.getSession().then(({ data }) => (data.session ? entrar(data.session.user) : setCargando(false)));
     const { data } = supabase.auth.onAuthStateChange((evento) => { if (evento === 'SIGNED_OUT') setPerfil(null); });
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (perfil) history.replaceState(null, '', `${location.pathname}${location.search}#${tab}`);
-  }, [tab, perfil]);
+    if (!perfil) return;
+    if (!pestanas.some((t) => t.id === tab) && pestanas.length) setTab(pestanas[0].id);
+    else history.replaceState(null, '', `${location.pathname}${location.search}#${tab}`);
+  }, [tab, perfil]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function entrar(user) {
-    const { data: p } = await supabase.from('perfiles').select('id, email, nombre, rol, activo').eq('id', user.id).maybeSingle();
+    const { data: p } = await supabase.from('perfiles')
+      .select('id, email, nombre, rol, activo, roles(id, nombre, secciones, alcance, puede_exportar)')
+      .eq('id', user.id).maybeSingle();
     if (!p || !p.activo) {
       await supabase.auth.signOut();
       setError('Tu cuenta no tiene acceso al panel. Pide a un administrador que la active.');
       setCargando(false);
       return;
     }
-    const { data: c } = await supabase.from('configuracion').select('*').eq('id', 1).maybeSingle();
-    setConfig(c);
+    await recargarContexto();
     setPerfil(p);
     setError('');
     setCargando(false);
-    if (tab === 'configuracion' && p.rol !== 'admin') setTab('recepcion');
   }
 
   async function salir() {
@@ -61,14 +75,23 @@ export default function App() {
     setPerfil(null);
   }
 
-  const pestanas = PESTANAS.filter((t) => !t.soloAdmin || perfil?.rol === 'admin');
+  const principal = empresas.find((e) => e.es_principal);
+  const logoBarra = config?.logo_url || null;
 
   return (
     <>
       <header className="topbar">
         <div className="topbar-brand">
-          <a className="wordmark" href="/">HIXSA</a>
+          <a href="/" className="topbar-logo" aria-label="Ir al registro de visitantes">
+            {logoBarra ? <span className="logo-chip"><img src={logoBarra} alt="HIXSA" /></span>
+              : <img src={LOGO_BLANCO} alt="HIXSA" />}
+          </a>
           <span className="topbar-title">Panel de visitas</span>
+          {config?.modo_auditoria && (
+            <span className="badge-auditoria" title="Solo se muestra la información de la empresa principal">
+              Modo auditoría: {principal?.nombre ?? 'HIXSA'}
+            </span>
+          )}
         </div>
         {perfil && (
           <>
@@ -80,7 +103,7 @@ export default function App() {
             </nav>
             <div className="user">
               <span className="user-name">{perfil.nombre}</span>
-              <span className="badge">{perfil.rol === 'admin' ? 'Administrador' : 'Consulta'}</span>
+              <span className="badge">{perfil.roles?.nombre ?? perfil.rol}</span>
               <CambiarPassword />
               <button className="link-btn" type="button" onClick={salir}>Salir</button>
             </div>
@@ -91,14 +114,17 @@ export default function App() {
       <main className="admin-main">
         {cargando ? <p className="muted cargando">Cargando…</p>
           : !perfil ? <Login error={error} onEntrar={entrar} />
-            : (
-              <section id={`vista-${tab}`} role="tabpanel" className="panel-section">
-                {tab === 'recepcion' && <Recepcion paseInicial={pase} />}
-                {tab === 'tablero' && <Tablero />}
-                {tab === 'consultas' && <Consultas config={config} />}
-                {tab === 'configuracion' && perfil.rol === 'admin' && <Configuracion perfil={perfil} onConfig={setConfig} />}
-              </section>
-            )}
+            : !pestanas.length ? <p className="status">Tu rol no tiene secciones asignadas. Pide a un SUPERADMIN que lo configure.</p>
+              : (
+                <section id={`vista-${tab}`} role="tabpanel" className="panel-section">
+                  {tab === 'recepcion' && <Recepcion paseInicial={pase} />}
+                  {tab === 'tablero' && <Tablero empresas={empresas} auditoria={config?.modo_auditoria} />}
+                  {tab === 'consultas' && <Consultas config={config} perfil={perfil} empresas={empresas} />}
+                  {tab === 'configuracion' && (
+                    <Configuracion perfil={perfil} config={config} empresas={empresas} recargar={recargarContexto} />
+                  )}
+                </section>
+              )}
       </main>
     </>
   );

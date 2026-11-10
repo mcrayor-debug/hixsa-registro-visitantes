@@ -5,7 +5,7 @@
 // =====================================================================
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
-import { usuarioActivo } from "../_shared/auth.ts";
+import { filtroAuditoria, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
 import { enviarCorreo, escapar } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
 
@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
   const db = clienteServicio();
   const yo = await usuarioActivo(req, db);
   if (!yo) return json({ error: "Inicia sesión para continuar." }, 401);
+  if (!tienePermiso(yo, "recepcion")) return json({ error: "Tu rol no tiene acceso a Recepción." }, 403);
 
   const p = await leerJson<{ folio?: string; accion?: "llegada" | "salida" }>(req);
   const folio = String(p?.folio ?? "").trim().toUpperCase();
@@ -26,10 +27,13 @@ Deno.serve(async (req) => {
 
   const { data: v } = await db
     .from("visitantes")
-    .select("id, folio, nombre_completo, empresa, motivo, persona_visita, entrada, salida, llegada_at, salida_real_at, anfitrion_id")
+    .select("id, folio, nombre_completo, empresa, motivo, persona_visita, entrada, salida, llegada_at, salida_real_at, anfitrion_id, empresa_visita_id")
     .eq("folio", folio)
     .maybeSingle();
-  if (!v) return json({ error: `No existe una visita con el folio ${folio}.` }, 404);
+  const soloEmpresa = await filtroAuditoria(db);
+  if (!v || (soloEmpresa && v.empresa_visita_id !== soloEmpresa)) {
+    return json({ error: `No existe una visita con el folio ${folio}.` }, 404);
+  }
 
   const ahora = new Date().toISOString();
 

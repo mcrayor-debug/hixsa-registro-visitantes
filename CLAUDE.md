@@ -46,3 +46,24 @@ npm install && npm run dev       # formulario en http://localhost:3000 y panel e
 npm run reporte:demo             # reporte diario con datos de ejemplo
 cd supabase/functions && DENO_NO_PACKAGE_JSON=1 deno check */index.ts
 ```
+
+
+## Versión 4 (en desarrollo por fases)
+
+- **Despliegue real:** Cloudflare **Workers** con activos estáticos (`wrangler.jsonc`, carpeta `dist`),
+  URL `https://hixsa-registro-visitantes.mcrayor.workers.dev`. Supabase: proyecto `ziqfcmgufkeydulgtnvl`.
+- **Cambios de base de datos:** siempre como archivo nuevo en `supabase/migrations/AAAAMMDD_descripcion.sql`,
+  idempotente. No editar migraciones ya ejecutadas. `schema.sql` es la base v3.
+- **Roles y permisos:** tabla `roles` (secciones, alcance, puede_exportar). Funciones SQL `tiene_permiso(seccion)`,
+  `es_superadmin()`, `visita_en_alcance(entrada)`, `empresa_visible(empresa)`. En el panel: `panel/src/lib/permisos.js`.
+  En Edge Functions: `tienePermiso()`, `rangoDelAlcance()`, `filtroAuditoria()` en `_shared/auth.ts`.
+  Toda regla de acceso va **en la base (RLS)**; el panel solo oculta lo que el rol no puede usar.
+- **Modo auditoría:** `configuracion.modo_auditoria`. Cuando está activo, solo la empresa principal es visible
+  para todos (RLS + funciones con service_role deben aplicar `filtroAuditoria()`).
+- **Empresas:** `empresas` (empresa a visitar) ≠ `visitantes.empresa` (empresa de origen, texto libre).
+  Anfitriones ↔ empresas en `anfitrion_empresas`.
+- **Formulario público:** obtiene datos con `rpc('config_publica')`; no consulta tablas directamente.
+- **Bitácora:** los triggers registran cambios hechos desde el panel; las Edge Functions con service_role
+  registran los suyos con `registrarCambio()`.
+- **Sin API de Claude:** los reportes usan resúmenes calculados.
+- **Marca:** colores y fuentes solo desde las variables de `public/styles.css`. El logotipo no se deforma ni se recolorea.

@@ -1,5 +1,25 @@
 # Historial de versiones
 
+## 4.0.0-fase.1 (noviembre 2026)
+
+### Nuevo
+- **Identidad oficial HIXSA**: paleta del Manual de Identidad (azul #0047BA, cian #00A9E0, naranja #F38A00, amarillo #FFCD00), tipografía Calibri y logotipo en formulario, panel y correos.
+- **Bienvenida por empresa**: pantalla completa para elegir la empresa a visitar (botones con logo y lista). En **modo auditoría** solo aparece HIXSA.
+- **Empresas a visitar** configurables (nombre, logo, botón o lista, orden, activa) y **logo del sistema** editable.
+- **Modo auditoría** aplicado en la base de datos: el panel y los reportes solo muestran la empresa principal.
+- **Roles con permisos**: SUPERADMIN, ADMIN, SUPERVISOR, RECEPCIÓN y CONSULTA, con secciones, alcance de consulta (hoy, semana, sin límite) y permiso de exportar. El SUPERADMIN crea, edita y borra roles y usuarios.
+- **Nombre y apellidos** por separado; **empresa de origen** y **empresa a visitar** como campos distintos.
+- **Anfitriones**: celular, foto (privada) y varias empresas; el formulario los filtra por la empresa elegida.
+- **Tolerancia de llegada** configurable (minutos).
+- **Bitácora de cambios**: quién cambió qué y cuándo en usuarios, roles, empresas, anfitriones y configuración.
+- Botón visible **“Acceso para personal”** en la bienvenida y en el formulario.
+
+### Cambios
+- El rol `admin` se conserva como ADMIN y `consulta` como CONSULTA; CONSULTA ya no exporta ni envía reportes.
+- El formulario obtiene empresas y anfitriones con la función pública `config_publica()` (sin acceso directo a tablas).
+- Ya no se cargan fuentes de Google; las cabeceras de seguridad se ajustaron.
+- Migraciones en `supabase/migrations/` (la primera: `20261110_v4_fase1.sql`).
+
 ## 3.0.0 (noviembre 2026)
 
 ### Nuevo

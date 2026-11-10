@@ -72,7 +72,7 @@ export default function FichaVisita({ folio, h, onCambio }) {
         <div>
           <p className="ficha-folio mono">{v.folio}</p>
           <h2 className="ficha-titulo">{v.nombre_completo}</h2>
-          <p className="muted">{v.empresa}</p>
+          <p className="muted">De: {v.empresa}</p>
         </div>
         <Estado {...est} />
       </div>
@@ -83,6 +83,7 @@ export default function FichaVisita({ folio, h, onCambio }) {
       {coincide === true && <p className="ficha-ok">Pase válido: coincide con el registro.</p>}
 
       <dl className="pase-detalle">
+        {fila('Empresa a visitar', v.empresas?.nombre)}
         {fila('Visita a', v.persona_visita)}
         {fila('Motivo', v.motivo)}
         {fila('Horario', `${fmtLarga.format(new Date(v.entrada))} a ${fmtHora.format(new Date(v.salida))}`)}

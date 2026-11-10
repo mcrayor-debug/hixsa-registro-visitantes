@@ -5,7 +5,7 @@
 // =====================================================================
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
-import { usuarioActivo } from "../_shared/auth.ts";
+import { filtroAuditoria, rangoDelAlcance, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
 import { EMAIL_RE, enviarCorreo, escapar } from "../_shared/correo.ts";
 import { aplicarFiltros, type Filtros } from "../_shared/filtros.ts";
 import { formatoFechaHora } from "../_shared/formato.ts";
@@ -13,7 +13,7 @@ import { formatoFechaHora } from "../_shared/formato.ts";
 const MAX_FILAS = 5000;
 
 const COLUMNAS: [string, string][] = [
-  ["folio", "Folio"], ["nombre_completo", "Nombre"], ["empresa", "Empresa"], ["correo", "Correo"],
+  ["folio", "Folio"], ["nombre_completo", "Nombre"], ["empresa", "Empresa de origen"], ["empresa_visita", "Empresa a visitar"], ["correo", "Correo"],
   ["telefono", "Teléfono"], ["persona_visita", "Visita a"], ["motivo", "Motivo"],
   ["entrada", "Entrada"], ["salida", "Salida"], ["llegada_at", "Llegada real"], ["salida_real_at", "Salida real"],
   ["tipo_identificacion", "Identificación"], ["comentarios", "Comentarios"],
@@ -48,6 +48,9 @@ Deno.serve(async (req) => {
   const db = clienteServicio();
   const yo = await usuarioActivo(req, db);
   if (!yo) return json({ error: "Inicia sesión para continuar." }, 401);
+  if (!yo.roles?.puede_exportar && !tienePermiso(yo, "config_roles")) {
+    return json({ error: "Tu rol no tiene permiso para exportar ni enviar reportes." }, 403);
+  }
 
   const p = await leerJson<{ filtros?: Filtros; destinatarios?: string[] }>(req);
   const filtros = p?.filtros ?? {};
@@ -57,14 +60,26 @@ Deno.serve(async (req) => {
   const invalidos = destinatarios.filter((d) => !EMAIL_RE.test(d));
   if (invalidos.length) return json({ error: `Correo inválido: ${invalidos.join(", ")}` }, 422);
 
-  let q = db.from("visitantes").select(COLUMNAS.map(([k]) => k).join(", "));
-  q = aplicarFiltros(q, filtros).order("entrada", { ascending: true }).limit(MAX_FILAS);
+  // El reporte respeta el alcance del rol y el modo auditoría, igual que el panel
+  const limite = rangoDelAlcance(yo);
+  if (limite) {
+    if (!filtros.desde || filtros.desde < limite.desde) filtros.desde = limite.desde;
+    if (!filtros.hasta || filtros.hasta > limite.hasta) filtros.hasta = limite.hasta;
+  }
+  const soloEmpresa = await filtroAuditoria(db);
+
+  let q = db.from("visitantes").select(COLUMNAS.map(([k]) => k).filter((k) => k !== "empresa_visita").join(", ") + ", empresas(nombre)");
+  q = aplicarFiltros(q, filtros);
+  if (soloEmpresa) q = q.eq("empresa_visita_id", soloEmpresa);
+  q = q.order("entrada", { ascending: true }).limit(MAX_FILAS);
   const { data, error } = await q;
   if (error) {
     console.error(error);
     return json({ error: "No se pudo consultar la información." }, 500);
   }
-  const filas = (data ?? []) as unknown as Record<string, unknown>[];
+  const filas = ((data ?? []) as unknown as Record<string, unknown>[]).map((f): Record<string, unknown> => ({
+    ...f, empresa_visita: (f.empresas as { nombre?: string } | null)?.nombre ?? "",
+  }));
 
   // Resumen para el cuerpo del correo
   const porMotivo = new Map<string, number>();

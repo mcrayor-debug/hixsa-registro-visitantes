@@ -10,6 +10,7 @@ import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
 import { EMAIL_RE, enviarCorreo, escapar } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora, huellaPase } from "../_shared/formato.ts";
+import { filtroAuditoria } from "../_shared/auth.ts";
 
 const MOTIVOS = ["Reunión", "Entrevista", "Proveedor o servicio", "Entrega o paquetería", "Otro"];
 const IDENTIFICACIONES = ["INE", "Licencia", "Pasaporte", "ID empresa", "Otro"];
@@ -19,7 +20,9 @@ const HORA_MS = 60 * 60 * 1000;
 const AVISO_URL = "https://www.hixsa.com/sobre-nosotros/aviso-de-privacidad/";
 
 interface Entrada {
-  nombre_completo?: string;
+  nombre?: string;
+  apellidos?: string;
+  empresa_visita_id?: string;
   empresa?: string;
   correo?: string;
   telefono?: string;
@@ -40,7 +43,10 @@ function validar(b: Entrada) {
   const campos: Record<string, string> = {};
   const txt = (v: unknown) => String(v ?? "").trim().replace(/\s+/g, " ");
 
-  const nombre = txt(b.nombre_completo);
+  const nombreSolo = txt(b.nombre);
+  const apellidos = txt(b.apellidos);
+  const nombre = `${nombreSolo} ${apellidos}`.trim();
+  const empresaVisita = txt(b.empresa_visita_id);
   const empresa = txt(b.empresa);
   const correo = txt(b.correo).toLowerCase();
   const telefonoCrudo = txt(b.telefono);
@@ -49,7 +55,9 @@ function validar(b: Entrada) {
   const motivo = txt(b.motivo);
   const comentarios = txt(b.comentarios) || null;
 
-  if (nombre.length < 3 || nombre.length > 120) campos.nombre_completo = "Escribe tu nombre y apellido.";
+  if (nombreSolo.length < 1 || nombreSolo.length > 60) campos.nombre = "Escribe tu nombre.";
+  if (apellidos.length < 2 || apellidos.length > 80) campos.apellidos = "Escribe tus apellidos.";
+  if (!UUID_RE.test(empresaVisita)) campos.empresa_visita = "Elige la empresa que visitas.";
   if (empresa.length < 2 || empresa.length > 120) campos.empresa = "Escribe el nombre de tu empresa.";
   if (!EMAIL_RE.test(correo) || correo.length > 254) campos.correo = "Revisa el formato del correo.";
   if (!/^\+?[0-9]{10,15}$/.test(telefono)) campos.telefono = "Escribe un teléfono de 10 a 15 dígitos.";
@@ -82,6 +90,9 @@ function validar(b: Entrada) {
     campos,
     datos: {
       nombre_completo: nombre,
+      nombre: nombreSolo,
+      apellidos,
+      empresa_visita_id: empresaVisita,
       empresa,
       correo,
       telefono,
@@ -120,7 +131,7 @@ function leerFoto(dataUrl: string): { bytes: Uint8Array; tipo: string; ext: stri
   return "El archivo no es una imagen válida.";
 }
 
-function plantillaCorreo(v: Record<string, string>, folio: string) {
+function plantillaCorreo(v: Record<string, string>, folio: string, empresaVisita: string, logo: string) {
   const fila = (k: string, val: string) =>
     `<tr><td style="padding:6px 0;color:#5B6B7F;width:140px;vertical-align:top">${k}</td>` +
     `<td style="padding:6px 0;color:#1C2A3A;font-weight:600">${escapar(val)}</td></tr>`;
@@ -129,9 +140,10 @@ function plantillaCorreo(v: Record<string, string>, folio: string) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F7FA;padding:24px 12px">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #D3DCE6">
-<tr><td style="background:#12365F;padding:22px 28px;color:#FFFFFF">
-  <div style="font-size:20px;font-weight:800;letter-spacing:2px">HIXSA</div>
-  <div style="font-size:15px;color:#CFE3F2;margin-top:4px">Tu pase de visita</div>
+<tr><td style="padding:22px 28px 14px;border-bottom:4px solid #0047BA">
+  ${logo ? `<img src="${escapar(logo)}" alt="HIXSA" height="44" style="display:block;height:44px;width:auto;border:0">`
+    : `<div style="font-size:22px;font-weight:800;letter-spacing:2px;color:#0047BA">HIXSA</div>`}
+  <div style="font-size:15px;color:#5B6B7F;margin-top:8px">Tu pase de visita</div>
 </td></tr>
 <tr><td style="padding:28px">
   <p style="margin:0 0 16px;font-size:16px;color:#1C2A3A">Hola ${escapar(v.nombre_completo.split(" ")[0])}, tu visita quedó registrada. Muestra este código en recepción al llegar.</p>
@@ -142,9 +154,10 @@ function plantillaCorreo(v: Record<string, string>, folio: string) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">
     ${fila("Entrada", `${formatoFecha(v.entrada)}, ${formatoHora(v.entrada)} h`)}
     ${fila("Salida", mismaFecha ? `${formatoHora(v.salida)} h` : `${formatoFecha(v.salida)}, ${formatoHora(v.salida)} h`)}
+    ${fila("Empresa a visitar", empresaVisita)}
     ${fila("Visitas a", v.persona_visita)}
     ${fila("Motivo", v.motivo)}
-    ${fila("Empresa", v.empresa)}
+    ${fila("Tu empresa", v.empresa)}
   </table>
   <p style="margin:22px 0 0;font-size:13px;color:#5B6B7F;line-height:1.5">
     Torre Mitikah, piso 17. Av. Río Churubusco 601, Xoco, Benito Juárez, CDMX.<br>
@@ -180,10 +193,19 @@ Deno.serve(async (req) => {
     .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
   if ((count ?? 0) >= 5) return json({ error: "Demasiados registros seguidos. Espera unos minutos." }, 429);
 
-  // Anfitrión del directorio: el nombre se toma del servidor, no del navegador
+  // Empresa a visitar: activa y visible (en modo auditoría solo la principal)
+  const { data: empresa } = await db.from("empresas").select("id, nombre, activa, logo_url").eq("id", datos.empresa_visita_id).maybeSingle();
+  const soloEmpresa = await filtroAuditoria(db);
+  if (!empresa || !empresa.activa || (soloEmpresa && empresa.id !== soloEmpresa)) {
+    return json({ error: "Revisa los datos marcados.", campos: { empresa_visita: "Elige una empresa válida." } }, 422);
+  }
+
+  // Anfitrión del directorio: el nombre se toma del servidor, no del navegador, y debe pertenecer a la empresa
   if (datos.anfitrion_id) {
     const { data: anf } = await db.from("anfitriones").select("nombre, area, activo").eq("id", datos.anfitrion_id).maybeSingle();
-    if (!anf || !anf.activo) return json({ error: "Revisa los datos marcados.", campos: { persona_visita: "Elige a quién visitas." } }, 422);
+    const { data: pertenece } = await db.from("anfitrion_empresas").select("anfitrion_id")
+      .eq("anfitrion_id", datos.anfitrion_id).eq("empresa_id", empresa.id).maybeSingle();
+    if (!anf || !anf.activo || !pertenece) return json({ error: "Revisa los datos marcados.", campos: { persona_visita: "Elige a quién visitas." } }, 422);
     datos.persona_visita = anf.area ? `${anf.nombre} (${anf.area})` : anf.nombre;
   }
 
@@ -223,6 +245,10 @@ Deno.serve(async (req) => {
   });
   const qrBase64 = qrDataUrl.split(",")[1];
 
+  // Logo del correo: el configurado en el panel o el del sitio publicado
+  const { data: cfgLogo } = await db.from("configuracion").select("logo_url").eq("id", 1).maybeSingle();
+  const logoCorreo = cfgLogo?.logo_url || (sitio ? `${sitio}/img/logo-hixsa.png` : "");
+
   // Copia a recepción (configurable desde el panel)
   const { data: cfg } = await db
     .from("configuracion")
@@ -237,7 +263,7 @@ Deno.serve(async (req) => {
       para: [visita.correo],
       cc,
       asunto: `Tu pase de visita a HIXSA (${visita.folio})`,
-      html: plantillaCorreo(visita, visita.folio),
+      html: plantillaCorreo(visita, visita.folio, empresa.nombre, logoCorreo),
       texto: `Tu visita a HIXSA quedó registrada. Folio ${visita.folio}. ` +
         `Entrada: ${formatoFecha(visita.entrada)} ${formatoHora(visita.entrada)} h. ` +
         `Salida: ${formatoFecha(visita.salida)} ${formatoHora(visita.salida)} h.`,
