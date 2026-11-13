@@ -13,6 +13,7 @@ export default function Anfitriones({ empresas }) {
   const [editando, setEditando] = useState(null);
   const [archivo, setArchivo] = useState(null);
   const [error, setError] = useState('');
+  const [soloNombre, setSoloNombre] = useState(false);
   const toast = useToast();
   const nombreEmpresa = Object.fromEntries(empresas.map((e) => [e.id, e.nombre]));
 
@@ -28,6 +29,13 @@ export default function Anfitriones({ empresas }) {
     }
   }, []);
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => { supabase.from('configuracion').select('anfitrion_solo_nombre').eq('id', 1).maybeSingle().then(({ data }) => setSoloNombre(Boolean(data?.anfitrion_solo_nombre))); }, []);
+  async function cambiarSoloNombre(valor) {
+    const { error: err } = await supabase.from('configuracion').update({ anfitrion_solo_nombre: valor }).eq('id', 1);
+    if (err) return toast(mensajeError(err));
+    setSoloNombre(valor);
+    toast(valor ? 'El formulario mostrará solo el nombre del anfitrión.' : 'El formulario mostrará nombre y apellido del anfitrión.');
+  }
 
   async function guardar(e) {
     e.preventDefault();
@@ -92,6 +100,10 @@ export default function Anfitriones({ empresas }) {
           <Icono nombre="agregar" /> Agregar anfitrión
         </button>
       </div>
+      <label className="check opcion-formulario">
+        <input type="checkbox" checked={soloNombre} onChange={(e) => cambiarSoloNombre(e.target.checked)} />
+        <span>En el formulario, mostrar <strong>solo el nombre</strong> del anfitrión (sin apellidos). El área se sigue mostrando.</span>
+      </label>
       <div className="table-wrap">
         <table className="tabla">
           <thead><tr><th>Anfitrión</th><th>Contacto</th><th>Empresas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>

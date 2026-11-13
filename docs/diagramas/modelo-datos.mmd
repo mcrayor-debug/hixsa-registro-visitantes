@@ -1,0 +1,16 @@
+erDiagram
+  roles ||--o{ perfiles : "asigna"
+  empresas ||--o{ visitantes : "empresa a visitar"
+  empresas ||--o{ anfitrion_empresas : ""
+  anfitriones ||--o{ anfitrion_empresas : ""
+  anfitriones ||--o{ visitantes : "recibe"
+  personas ||--o{ visitantes : "realiza"
+  visitantes ||--o{ intentos_acceso : "registra"
+  roles { text id PK  text_arr secciones  text alcance  bool puede_exportar }
+  perfiles { uuid id PK  text email  text rol FK  bool activo }
+  empresas { uuid id PK  text nombre  text logo_url  bool es_principal }
+  anfitriones { uuid id PK  text nombre  text correo  text celular }
+  personas { uuid id PK  text correo  bool recurrente  text estado_bloqueo }
+  visitantes { uuid id PK  text folio  timestamptz entrada  timestamptz llegada_at  text estado_aprobacion  text origen }
+  intentos_acceso { bigint id PK  text resultado  text motivo }
+  configuracion { int id PK  bool modo_auditoria  int tolerancia_min  int minutos_anticipacion }

@@ -1,0 +1,25 @@
+sequenceDiagram
+  autonumber
+  actor V as Visitante
+  participant F as Formulario
+  participant RV as registrar-visita
+  participant AN as Anfitrión
+  participant AV as aprobar-visita
+  participant R as Recepción (panel)
+  participant RA as registrar-acceso
+  V->>F: Elige empresa y llena datos (o código de recurrente)
+  F->>RV: Datos + fotos
+  RV->>RV: Valida, revisa bloqueos, guarda fotos privadas
+  RV-->>V: Pase QR + invitación .ics
+  RV-->>AN: Correo Aprobar / Rechazar
+  AN->>AV: Confirma en aprobar.html
+  AV-->>V: Visita confirmada
+  V->>R: Muestra el QR al llegar
+  R->>RA: Registrar entrada
+  RA->>RA: Valida pase, bloqueo, aprobación y horario
+  alt Todo correcto
+    RA-->>AN: Aviso de llegada
+  else Fuera de horario o pendiente
+    RA-->>R: ACCESO NO PERMITIDO (autorizar con motivo)
+  end
+  R->>RA: Registrar salida (siempre permitida)

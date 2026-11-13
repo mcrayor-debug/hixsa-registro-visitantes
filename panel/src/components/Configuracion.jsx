@@ -35,7 +35,7 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
       {apartado === 'roles' && <Roles />}
       {apartado === 'empresas' && <Empresas config={config} empresas={empresas} recargar={recargar} />}
       {apartado === 'anfitriones' && <Anfitriones empresas={empresas} />}
-      {apartado === 'visitantes' && <Visitantes />}
+      {apartado === 'visitantes' && <Visitantes empresas={empresas} />}
       {apartado === 'datos' && <Datos perfil={perfil} />}
       {apartado === 'correos' && <Correos recargar={recargar} perfil={perfil} />}
       {apartado === 'bitacora' && <Bitacora />}

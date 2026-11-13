@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { supabase, consultaVisitas } from '../lib/supabase.js';
+import { supabase, consultaVisitas, invocar } from '../lib/supabase.js';
 import { descargarCsv, fmtFechaHora } from '../lib/formato.js';
 import { puedeExportar } from '../lib/permisos.js';
 import * as E from '../../../supabase/functions/_shared/estadisticas.js';
@@ -18,6 +18,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
   const [visitas, setVisitas] = useState(null);
   const [historial, setHistorial] = useState(new Set());
   const [correo, setCorreo] = useState(false);
+  const [envio, setEnvio] = useState(() => ({ tipo: 'diario', fecha: E.sumarDias(E.hoyCDMX(), -1), enviando: false }));
   const exporta = puedeExportar(perfil);
   const toast = useToast();
   const rango = tipo === 'semanal' ? E.semanaDe(semana) : E.mesDe(mes);
@@ -96,6 +97,23 @@ export default function Reportes({ config, perfil, empresas = [] }) {
           <p className="muted small reportes-periodo">Periodo: <strong>{rango.desde}</strong> a <strong>{rango.hasta}</strong></p>
         </div>
       </div>
+
+      {exporta && (
+        <div className="card envio-manual">
+          <div><strong>Enviar reporte a los destinatarios ahora</strong>
+            <p className="muted small">El mismo correo que sale solo a las 07:00. Útil si no llegó o para reenviar otro día.</p></div>
+          <div className="envio-manual-campos">
+            <select aria-label="Tipo de reporte" value={envio.tipo} onChange={(e) => setEnvio({ ...envio, tipo: e.target.value })}>
+              <option value="diario">Diario</option><option value="semanal">Semanal</option></select>
+            <input type="date" aria-label={envio.tipo === 'diario' ? 'Día del reporte' : 'Semana que contiene'} value={envio.fecha} max={E.hoyCDMX()} onChange={(e) => setEnvio({ ...envio, fecha: e.target.value })} />
+            <button type="button" className="btn btn-compact" disabled={envio.enviando} aria-busy={envio.enviando} onClick={async () => {
+              setEnvio({ ...envio, enviando: true });
+              try { const r = await invocar('reporte-programado', { tipo: envio.tipo, fecha: envio.fecha }); toast(`Reporte ${r.tipo} enviado (${r.total} visitas, ${r.desde}${r.hasta !== r.desde ? ` a ${r.hasta}` : ''}).`); }
+              catch (e) { toast(e.message); } finally { setEnvio((x) => ({ ...x, enviando: false })); }
+            }}>{envio.enviando ? 'Enviando…' : 'Enviar ahora'}</button>
+          </div>
+        </div>
+      )}
 
       {!d ? <p className="muted">Calculando…</p> : (
         <>

@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { supabase, invocar, CAMPOS_VISITA } from '../../lib/supabase.js';
 import { estadoVisita, fmtFechaHora } from '../../lib/formato.js';
 import FichaVisita from '../FichaVisita.jsx';
+import NuevaInvitacion from '../NuevaInvitacion.jsx';
+import { puede } from '../../lib/permisos.js';
 import { Dialogo, Estado, useToast } from '../ui.jsx';
 
 const ESTADOS_BLOQUEO = { no_deseado: ['No deseado', 'aviso'], restringido: ['Restringido', 'restringido'], bloqueado: ['Bloqueado', 'error'] };
 
-export default function ConsultaVisitante() {
+export default function ConsultaVisitante({ perfil, empresas = [] }) {
+  const [invitar, setInvitar] = useState(false);
+  const puedeInvitar = puede(perfil, 'recepcion') || puede(perfil, 'config_visitantes');
   const [texto, setTexto] = useState('');
   const [personas, setPersonas] = useState([]);
   const [sel, setSel] = useState(null);
@@ -19,7 +23,7 @@ export default function ConsultaVisitante() {
     const t = texto.replace(/[,()*%\\]/g, ' ').trim();
     if (t.length < 2) { setPersonas([]); return undefined; }
     const id = setTimeout(async () => {
-      const { data } = await supabase.from('personas').select('id, correo, nombre, apellidos, empresa, recurrente, estado_bloqueo, ultima_visita_at')
+      const { data } = await supabase.from('personas').select('id, correo, nombre, apellidos, empresa, recurrente, estado_bloqueo, ultima_visita_at, identificacion_path')
         .or(['nombre', 'apellidos', 'correo'].map((c) => `${c}.ilike.%${t}%`).join(',')).order('ultima_visita_at', { ascending: false, nullsFirst: false }).limit(20);
       setPersonas(data ?? []);
     }, 250);
@@ -63,6 +67,9 @@ export default function ConsultaVisitante() {
               <h2 id="perfil-titulo">{`${sel.nombre ?? ''} ${sel.apellidos ?? ''}`.trim() || sel.correo}</h2>
               <p className="muted">{sel.correo} · {sel.empresa} · {sel.recurrente ? 'Recurrente' : 'No recurrente'} · {visitas.length} {visitas.length === 1 ? 'visita' : 'visitas'}</p>
             </div>
+            {puedeInvitar && sel.estado_bloqueo !== 'bloqueado' && (
+              <button type="button" className="btn btn-compact btn-icono" onClick={() => setInvitar(true)}>Nueva invitación</button>
+            )}
           </div>
           <div className={`estado-invitacion ${vigente ? 'activa' : ''}`}>
             <strong>Estado actual de su invitación:</strong>{' '}
@@ -93,6 +100,7 @@ export default function ConsultaVisitante() {
       <Dialogo abierto={Boolean(ficha)} onCerrar={() => setFicha(null)} titulo="Ficha de la visita" ancho={640}>
         {ficha && <FichaVisita folio={ficha} onCambio={() => abrir(sel)} />}
       </Dialogo>
+      {invitar && sel && <NuevaInvitacion persona={sel} empresas={empresas} onCerrar={() => setInvitar(false)} onCreada={() => abrir(sel)} />}
     </div>
   );
 }

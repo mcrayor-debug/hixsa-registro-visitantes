@@ -80,29 +80,49 @@ export async function enviarPase(
     await db.from("visitantes").update({ correo_error: String(e).slice(0, 300) }).eq("id", v.id);
   }
 
-  // Todas las visitas, sin excepción, a los correos de calendario configurados (solo en el registro)
-  const calendario = (cfg?.correos_calendario ?? []) as string[];
-  if (!o.reenvio && calendario.length) {
-    const invitacion = crearIcs({ ...evento, titulo: `Visita: ${v.nombre_completo} (${v.empresa}) a ${o.empresaVisita}`,
-      uid: uid(v.folio), organizador: remitente(), asistentes: calendario, metodo: "REQUEST" });
-    try {
-      await enviarCorreo({
-        para: calendario,
-        asunto: `Visita: ${v.nombre_completo} (${v.empresa}), ${formatoFecha(v.entrada)} ${formatoHora(v.entrada)} h`,
-        html: plantilla({ titulo: "Visita programada", logo, cuerpo: tabla(v, o.empresaVisita) }),
-        adjuntos: [{ filename: "invitacion.ics", content: base64Texto(invitacion), content_type: "text/calendar; charset=utf-8; method=REQUEST" }],
-      });
-    } catch (e) {
-      console.error("invitación de calendario", e);
-    }
-  }
+  // Todas las visitas, sin excepción, al calendario de recepción y a los correos configurados (solo en el registro)
+  if (!o.reenvio) await invitarCalendario(db, v, o.empresaVisita, { cfg, logo });
   return { qr, correoEnviado };
+}
+
+/** Correos que reciben todas las visitas en su calendario: recepción + los configurados (sin repetir). */
+// deno-lint-ignore no-explicit-any
+export function correosCalendario(cfg: any): string[] {
+  const lista = [...(cfg?.correos_calendario ?? []), ...(cfg?.correo_recepcion ? [cfg.correo_recepcion] : [])] as string[];
+  return [...new Set(lista.map((c) => c.trim().toLowerCase()).filter(Boolean))].slice(0, 11);
+}
+
+/** Invitación de calendario (.ics REQUEST) de una visita. Devuelve true si se envió. */
+export async function invitarCalendario(
+  // deno-lint-ignore no-explicit-any
+  db: SupabaseClient, v: VisitaPase, empresaVisita: string, pre?: { cfg?: any; logo?: string },
+): Promise<boolean> {
+  const cfg = pre?.cfg ?? (await db.from("configuracion").select("correo_recepcion, correos_calendario").eq("id", 1).maybeSingle()).data;
+  const calendario = correosCalendario(cfg);
+  if (!calendario.length) return false;
+  const invitacion = crearIcs({
+    titulo: `Visita: ${v.nombre_completo} (${v.empresa}) a ${empresaVisita}`, inicio: v.entrada, fin: v.salida, lugar: LUGAR_HIXSA,
+    descripcion: `Visitas a: ${v.persona_visita}\nMotivo: ${v.motivo}\nFolio: ${v.folio}`,
+    uid: uid(v.folio), organizador: remitente(), asistentes: calendario, metodo: "REQUEST",
+  });
+  try {
+    await enviarCorreo({
+      para: calendario,
+      asunto: `Visita: ${v.nombre_completo} (${v.empresa}), ${formatoFecha(v.entrada)} ${formatoHora(v.entrada)} h`,
+      html: plantilla({ titulo: "Visita programada", logo: pre?.logo ?? (await logoCorreo(db)), cuerpo: tabla(v, empresaVisita) }),
+      adjuntos: [{ filename: "invitacion.ics", content: base64Texto(invitacion), content_type: "text/calendar; charset=utf-8; method=REQUEST" }],
+    });
+    return true;
+  } catch (e) {
+    console.error("invitación de calendario", e);
+    return false;
+  }
 }
 
 /** Cancela la invitación en los calendarios configurados (cuando el anfitrión rechaza). */
 export async function cancelarCalendario(db: SupabaseClient, v: VisitaPase, empresaVisita: string) {
-  const { data: cfg } = await db.from("configuracion").select("correos_calendario").eq("id", 1).maybeSingle();
-  const calendario = (cfg?.correos_calendario ?? []) as string[];
+  const { data: cfg } = await db.from("configuracion").select("correo_recepcion, correos_calendario").eq("id", 1).maybeSingle();
+  const calendario = correosCalendario(cfg);
   if (!calendario.length) return;
   const ics = crearIcs({
     uid: uid(v.folio), inicio: v.entrada, fin: v.salida, lugar: LUGAR_HIXSA, organizador: remitente(), asistentes: calendario,

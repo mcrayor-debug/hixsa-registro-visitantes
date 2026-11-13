@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { consultaVisitas } from '../lib/supabase.js';
+import Dona from './Dona.jsx';
 import { diaCDMX, estadoVisita, fmtDia, horaCDMX, rangoPeriodo } from '../lib/formato.js';
 
 // Paleta del Manual de Identidad Corporativa de HIXSA
@@ -111,14 +112,7 @@ export default function Tablero({ empresas = [], auditoria = false }) {
                 <Bar isAnimationActive={false} dataKey="Llegadas" fill={AZUL} radius={[4, 4, 0, 0]} />
               </BarChart>
             </Grafica>
-            <Grafica titulo="Motivo de la visita">
-              <BarChart data={d.porMotivo} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-                <YAxis type="category" dataKey="motivo" width={140} tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar isAnimationActive={false} dataKey="Visitas" fill={CIAN} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </Grafica>
+            <Dona titulo="Motivo de la visita" datos={d.porMotivo.map((x) => ({ nombre: x.motivo, valor: x.Visitas }))} />
             <Grafica titulo="Anfitriones con más visitas">
               <BarChart data={d.anfitriones} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />

@@ -101,7 +101,13 @@ function pintarBienvenida() {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'empresa-fila';
-      b.textContent = e.nombre;
+      // Logo pequeño (o iniciales si la empresa no tiene logo)
+      const marca = document.createElement(e.logo_url ? 'img' : 'span');
+      marca.className = e.logo_url ? 'empresa-mini' : 'empresa-mini empresa-mini-texto';
+      if (e.logo_url) { marca.src = e.logo_url; marca.alt = ''; } else marca.textContent = e.nombre.slice(0, 2).toUpperCase();
+      const nombre = document.createElement('span');
+      nombre.textContent = e.nombre;
+      b.append(marca, nombre);
       b.addEventListener('click', () => elegirEmpresa(e));
       li.append(b);
       return li;
@@ -277,7 +283,25 @@ function aplicarPerfil(correo, r) {
   Object.keys(rules).forEach((n) => setError(n, ''));
   recMsg(`Listo${p.nombre ? `, ${p.nombre}` : ''}: recuperamos tus datos. Revísalos y elige fecha, horario y anfitrión.`, 'ok');
 }
+// Correo con perfil guardado: al salir del campo se envía el código automáticamente.
+// El aviso es el mismo exista o no el correo (no revela quién ha visitado HIXSA).
+let correoConsultado = '';
+form.elements.correo.addEventListener('change', async () => {
+  const correo = form.elements.correo.value.trim().toLowerCase();
+  if (recurrente || !supabase || !EMAIL_RE.test(correo) || correo === correoConsultado) return;
+  correoConsultado = correo;
+  try {
+    await invocarPublico('visitante-recurrente', { accion: 'solicitar', correo });
+    $('#rec-inicio').hidden = true;
+    $('#rec-paso-correo').hidden = true;
+    $('#rec-correo').value = correo;
+    $('#rec-paso-codigo').hidden = false;
+    recMsg('Si ya nos visitaste con este correo, te enviamos un código para recuperar tus datos. Si es tu primera visita, sigue llenando el formulario.', 'ok');
+  } catch { /* límite de envíos u otro error: el formulario sigue normal */ }
+});
+
 function limpiarRecurrente() {
+  correoConsultado = '';
   recurrente = null;
   $('#rec-inicio').hidden = false;
   $('#rec-paso-correo').hidden = true;

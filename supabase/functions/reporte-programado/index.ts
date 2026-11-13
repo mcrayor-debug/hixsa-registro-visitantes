@@ -9,6 +9,7 @@
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
 import { esSuperadmin, filtroAuditoria, usuarioActivo } from "../_shared/auth.ts";
+// Envío manual: SUPERADMIN o roles con permiso de exportar (Reportes → Enviar reporte ahora)
 import { enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { base64Texto } from "../_shared/calendario.ts";
 import * as E from "../_shared/estadisticas.js";
@@ -51,10 +52,11 @@ Deno.serve(async (req) => {
   const porCron = secreto.length >= 20 && req.headers.get("x-cron-secret") === secreto;
   if (!porCron) {
     const yo = await usuarioActivo(req, db);
-    if (!yo || !esSuperadmin(yo)) return json({ error: "No autorizado." }, 401);
+    if (!yo || !(esSuperadmin(yo) || yo.roles?.puede_exportar)) return json({ error: "Tu rol no puede enviar reportes." }, 403);
   }
-  const p = await leerJson<{ tipo?: string }>(req);
+  const p = await leerJson<{ tipo?: string; fecha?: string }>(req);
   const tipo = p?.tipo === "semanal" ? "semanal" : "diario";
+  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(p?.fecha ?? "")) ? String(p!.fecha) : null;
 
   const { data: cfg } = await db.from("configuracion").select("destinatarios_reporte, tolerancia_min").eq("id", 1).maybeSingle();
   const destinatarios = (cfg?.destinatarios_reporte ?? []) as string[];
@@ -62,7 +64,10 @@ Deno.serve(async (req) => {
   const tolerancia = cfg?.tolerancia_min ?? 15;
   const solo = await filtroAuditoria(db);
   const hoy = E.hoyCDMX();
-  const rango = tipo === "diario" ? { desde: E.sumarDias(hoy, -1), hasta: E.sumarDias(hoy, -1) } : E.semanaAnterior();
+  // Diario: el día indicado (por omisión, ayer) + agenda del día siguiente. Semanal: la semana que contiene la fecha (por omisión, la anterior).
+  const dia = fecha ?? E.sumarDias(hoy, -1);
+  const rango = tipo === "diario" ? { desde: dia, hasta: dia } : fecha ? E.semanaDe(fecha) : E.semanaAnterior();
+  const diaAgenda = E.sumarDias(dia, 1);
 
   const consulta = (desde: string, hasta: string) => {
     let q = db.from("visitantes").select(CAMPOS)
@@ -80,7 +85,7 @@ Deno.serve(async (req) => {
   let cuerpo = "";
   let asunto = "";
   if (tipo === "diario") {
-    const { data: agenda } = await consulta(hoy, hoy);
+    const { data: agenda } = await consulta(diaAgenda, diaAgenda);
     const ag = (agenda ?? []) as V[];
     const alertas: string[] = [];
     if (r.sinUso) alertas.push(`${r.sinUso} ${r.sinUso === 1 ? "invitación venció" : "invitaciones vencieron"} sin uso.`);
@@ -90,10 +95,10 @@ Deno.serve(async (req) => {
     const errCorreo = vs.filter((v) => v.correo_error).length;
     if (errCorreo) alertas.push(`${errCorreo} ${errCorreo === 1 ? "pase no se pudo" : "pases no se pudieron"} enviar por correo.`);
     asunto = `Reporte diario de visitas HIXSA (${rango.desde})`;
-    cuerpo = `<p style="margin:0 0 12px">Resumen del <b>${fechaLarga(rango.desde)}</b>: ${r.total} visitas de ${r.empresas} empresas; llegaron ${r.llegaron}${r.puntualidad !== null ? `, con ${r.puntualidad} % de puntualidad` : ""}. Hoy hay ${ag.length} visitas programadas.</p>
-      ${kpis([["visitas", r.total], ["llegaron", r.llegaron], ["puntualidad", r.puntualidad === null ? "—" : `${r.puntualidad} %`], ["programadas hoy", ag.length]])}
+    cuerpo = `<p style="margin:0 0 12px">Resumen del <b>${fechaLarga(rango.desde)}</b>: ${r.total} visitas de ${r.empresas} empresas; llegaron ${r.llegaron}${r.puntualidad !== null ? `, con ${r.puntualidad} % de puntualidad` : ""}. El ${fechaLarga(diaAgenda)} hay ${ag.length} visitas programadas.</p>
+      ${kpis([["visitas", r.total], ["llegaron", r.llegaron], ["puntualidad", r.puntualidad === null ? "—" : `${r.puntualidad} %`], [diaAgenda === hoy ? "programadas hoy" : "programadas el día siguiente", ag.length]])}
       ${alertas.length ? `<h3 style="margin:18px 0 6px;font-size:15px;color:#F38A00">Alertas</h3><ul style="margin:0;padding-left:20px">${alertas.map((a) => `<li>${a}</li>`).join("")}</ul>` : ""}
-      ${tablaHtml(`Agenda de hoy (${ag.length})`, ["Horario", "Visitante", "Empresa", "Visita a", "Aprobación"],
+      ${tablaHtml(`Agenda del ${fechaLarga(diaAgenda)} (${ag.length})`, ["Horario", "Visitante", "Empresa", "Visita a", "Aprobación"],
         ag.map((v) => [`${hora(v.entrada)} a ${hora(v.salida)}`, v.nombre_completo, v.empresa, v.persona_visita, v.estado_aprobacion]))}`;
   } else {
     const claves = [...new Set(vs.map((v) => v.persona_id).filter(Boolean))];
@@ -124,6 +129,6 @@ Deno.serve(async (req) => {
     console.error("reporte programado", e);
     return json({ error: "No se pudo enviar el reporte. Revisa la configuración de Resend." }, 502);
   }
-  await db.from("bitacora_reportes").insert({ origen: "programado", destinatarios, filtros: { tipo, ...rango }, total_registros: vs.length });
+  await db.from("bitacora_reportes").insert({ origen: porCron ? "programado" : "panel", destinatarios, filtros: { tipo, ...rango }, total_registros: vs.length });
   return json({ ok: true, tipo, ...rango, total: vs.length, destinatarios });
 });

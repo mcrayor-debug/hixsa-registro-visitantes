@@ -1,5 +1,37 @@
 # Historial de versiones
 
+## 4.1.0 (noviembre 2026)
+
+### Nuevo
+- **Favicon e ícono de app** de HIXSA (SVG, con versiones PNG de 32, 180 y 512 px).
+- **Nueva invitación desde el panel** (Consultas → Por visitante, Configuración → Visitantes): reutiliza los datos e identificación del visitante, queda aprobada, avisa al anfitrión y envía un QR nuevo. Visitante restringido: la aprueba el anfitrión.
+- **Editar usuarios**: nombre, correo (también el de acceso) y celular.
+- **Editar visitantes**: nombre, correo, teléfono, empresa, identificación y selfie; aplica al perfil y a sus visitas próximas. Si cambia el correo, se reenvían sus pases.
+- **Bitácora** con filtro de fechas y apartado, páginas de 25 y agrupada por día.
+- **Reportes**: botón *Enviar ahora* (diario o semanal, eligiendo la fecha) para roles con permiso de exportar.
+- **Calendario**: el correo de recepción recibe todas las visitas automáticamente; botón *Sincronizar visitas próximas*.
+- **Gráficas de dona**: estado de las visitas (Consultas) y motivo (Tablero).
+- **Formulario**: logos pequeños en la lista de empresas; opción de mostrar solo el nombre del anfitrión; al escribir un correo con perfil se envía el código automáticamente (aviso genérico).
+- **Importación**: vista previa del servidor (nuevas, a actualizar, omitidas) y opción de actualizar lo ya importado.
+- **Recepción**: *Visitas de hoy* muestra el rango de horas.
+
+### Cambios
+- Nueva Edge Function `crear-invitacion`; migración `20261113_v4_1_0.sql`.
+- Estilo del botón *Enviarme otro código* en el formulario.
+
+## 4.0.0 (noviembre 2026)
+
+Versión 4 completa (fases 1 a 4).
+
+### Nuevo
+- **Documentación**: guía de instalación desde cero, documentación técnica (arquitectura, modelo de datos, seguridad, funciones, cómo hacer cambios), manual del visitante (modo normal y auditoría) y manual del personal, en Markdown y PDF con la identidad de HIXSA.
+- Diagramas editables en `docs/diagramas/` (Mermaid).
+
+### Mantenimiento
+- jsPDF 4.2.1, jspdf-autotable 5.0.9 y DOMPurify 3.4.17: **0 vulnerabilidades** en el código que llega al navegador.
+- Panel dividido en partes que cargan bajo demanda: la carga inicial baja de ~1.6 MB a ~540 KB; PDF y gráficas solo se descargan al usarse.
+- Vite se mantiene en 5.4: sus avisos solo afectan a su servidor de desarrollo, que el proyecto no usa.
+
 ## 4.0.0-fase.3 (noviembre 2026)
 
 ### Nuevo

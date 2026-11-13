@@ -16,6 +16,7 @@ interface Peticion {
   nombre?: string;
   rol?: string;
   activo?: boolean;
+  celular?: string | null;
   restablecer_password?: boolean;
 }
 
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
   // ---------- listar ----------
   if (p.accion === "listar") {
     const { data, error } = await db.from("perfiles")
-      .select("id, email, nombre, rol, activo, created_at").order("created_at", { ascending: true });
+      .select("id, email, nombre, rol, activo, celular, created_at").order("created_at", { ascending: true });
     if (error) return json({ error: "No se pudo leer la lista de usuarios." }, 500);
     return json({ usuarios: data });
   }
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
 
   // ---------- actualizar / eliminar: cargar al usuario objetivo ----------
   if (!p.id) return json({ error: "Falta el usuario." }, 400);
-  const { data: objetivo } = await db.from("perfiles").select("id, email, nombre, rol, activo").eq("id", p.id).maybeSingle();
+  const { data: objetivo } = await db.from("perfiles").select("id, email, nombre, rol, activo, celular").eq("id", p.id).maybeSingle();
   if (!objetivo) return json({ error: "El usuario no existe." }, 404);
   const esYo = objetivo.id === yo.id;
   if (objetivo.rol === "superadmin" && !esSuperadmin(yo)) {
@@ -113,7 +114,23 @@ Deno.serve(async (req) => {
       cambios.rol = p.rol;
     }
     if (p.activo !== undefined) cambios.activo = Boolean(p.activo);
-    if (p.nombre) cambios.nombre = String(p.nombre).trim();
+    if (p.nombre !== undefined) {
+      const nombre = String(p.nombre).trim().replace(/\s+/g, " ");
+      if (nombre.length < 3) return json({ error: "Escribe el nombre completo." }, 422);
+      cambios.nombre = nombre;
+    }
+    if (p.celular !== undefined) {
+      const tel = String(p.celular ?? "").trim();
+      const cel = tel ? (tel.startsWith("+") ? "+" : "") + tel.replace(/\D/g, "") : null;
+      if (cel && !/^\+?[0-9]{10,15}$/.test(cel)) return json({ error: "El celular debe tener de 10 a 15 dígitos." }, 422);
+      cambios.celular = cel;
+    }
+    let nuevoCorreo: string | null = null;
+    if (p.email !== undefined && String(p.email).trim().toLowerCase() !== objetivo.email.toLowerCase()) {
+      nuevoCorreo = String(p.email).trim().toLowerCase();
+      if (!EMAIL_RE.test(nuevoCorreo)) return json({ error: "Correo inválido." }, 422);
+      cambios.email = nuevoCorreo;
+    }
 
     const quitaSuperadmin = objetivo.rol === "superadmin" && objetivo.activo &&
       ((cambios.rol && cambios.rol !== "superadmin") || cambios.activo === false);
@@ -121,6 +138,14 @@ Deno.serve(async (req) => {
       return json({ error: "Debe quedar al menos un SUPERADMIN activo." }, 422);
     }
 
+    // El correo de acceso se cambia primero: si ya lo usa otra cuenta, no se toca nada
+    if (nuevoCorreo) {
+      const { error } = await db.auth.admin.updateUserById(objetivo.id, { email: nuevoCorreo, email_confirm: true });
+      if (error) {
+        const existe = /already|registered|exists/i.test(error.message ?? "");
+        return json({ error: existe ? "Ya existe un usuario con ese correo." : "No se pudo cambiar el correo de acceso." }, existe ? 409 : 500);
+      }
+    }
     if (Object.keys(cambios).length) {
       const { error } = await db.from("perfiles").update(cambios).eq("id", objetivo.id);
       if (error) return json({ error: "No se pudo actualizar el perfil." }, 500);

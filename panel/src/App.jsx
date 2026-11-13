@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase, configurado } from './lib/supabase.js';
 import { puede, puedeConfigurar } from './lib/permisos.js';
 import Login from './components/Login.jsx';
 import Recepcion from './components/Recepcion.jsx';
-import Tablero from './components/Tablero.jsx';
-import Consultas from './components/Consultas.jsx';
-import Reportes from './components/Reportes.jsx';
-import Configuracion from './components/Configuracion.jsx';
+// Pestañas pesadas: se descargan solo al abrirlas (Recepción carga de inmediato)
+const Tablero = lazy(() => import('./components/Tablero.jsx'));
+const Consultas = lazy(() => import('./components/Consultas.jsx'));
+const Reportes = lazy(() => import('./components/Reportes.jsx'));
+const Configuracion = lazy(() => import('./components/Configuracion.jsx'));
 import { Dialogo, Mensaje, useToast } from './components/ui.jsx';
 
 const PESTANAS = [
@@ -118,6 +119,7 @@ export default function App() {
           : !perfil ? <Login error={error} onEntrar={entrar} />
             : !pestanas.length ? <p className="status">Tu rol no tiene secciones asignadas. Pide a un SUPERADMIN que lo configure.</p>
               : (
+                <Suspense fallback={<p className="muted cargando">Cargando…</p>}>
                 <section id={`vista-${tab}`} role="tabpanel" className="panel-section">
                   {tab === 'recepcion' && <Recepcion paseInicial={pase} />}
                   {tab === 'tablero' && <Tablero empresas={empresas} auditoria={config?.modo_auditoria} />}
@@ -127,6 +129,7 @@ export default function App() {
                     <Configuracion perfil={perfil} config={config} empresas={empresas} recargar={recargarContexto} />
                   )}
                 </section>
+                </Suspense>
               )}
       </main>
     </>

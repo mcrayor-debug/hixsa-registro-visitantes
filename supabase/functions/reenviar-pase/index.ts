@@ -6,7 +6,7 @@
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
 import { filtroAuditoria, rangoDelAlcance, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
-import { enviarPase } from "../_shared/pase.ts";
+import { enviarPase, invitarCalendario } from "../_shared/pase.ts";
 import { diaCDMX } from "../_shared/estadisticas.js";
 
 Deno.serve(async (req) => {
@@ -17,7 +17,25 @@ Deno.serve(async (req) => {
   if (!yo) return json({ error: "Inicia sesión para continuar." }, 401);
   if (!tienePermiso(yo, "consultas") && !tienePermiso(yo, "recepcion")) return json({ error: "Tu rol no puede reenviar pases." }, 403);
 
-  const p = await leerJson<{ folio?: string }>(req);
+  const p = await leerJson<{ folio?: string; accion?: string }>(req);
+
+  // Sincronizar calendario: invitación de todas las visitas próximas (máx. 40 por llamada)
+  if (p?.accion === "sincronizar_calendario") {
+    if (!tienePermiso(yo, "config_correos")) return json({ error: "Tu rol no puede sincronizar el calendario." }, 403);
+    const solo = await filtroAuditoria(db);
+    let q = db.from("visitantes").select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, empresas(nombre)")
+      .gt("salida", new Date().toISOString()).neq("estado_aprobacion", "rechazada").is("salida_real_at", null).order("entrada").limit(40);
+    if (solo) q = q.eq("empresa_visita_id", solo);
+    const { data } = await q;
+    let enviadas = 0;
+    // deno-lint-ignore no-explicit-any
+    for (const v of (data ?? []) as any[]) {
+      if (await invitarCalendario(db, v, v.empresas?.nombre ?? "HIXSA")) enviadas++;
+      await new Promise((r) => setTimeout(r, 600)); // límite de envío de Resend
+    }
+    return json({ ok: true, visitas: data?.length ?? 0, enviadas });
+  }
+
   const folio = String(p?.folio ?? "").trim().toUpperCase();
   const { data: v } = await db.from("visitantes")
     .select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, salida_real_at, estado_aprobacion, empresa_visita_id, empresas(nombre)")

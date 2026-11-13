@@ -4,6 +4,7 @@ import { descargarCsv, estadoVisita, fmtFechaHora, MOTIVOS, rangoPeriodo } from 
 import { puedeExportar } from '../../lib/permisos.js';
 import { resumen, sinSalida } from '../../../../supabase/functions/_shared/estadisticas.js';
 import FichaVisita from '../FichaVisita.jsx';
+import Dona from '../Dona.jsx';
 import EnviarReporte from '../EnviarReporte.jsx';
 import { Dialogo, Estado, useToast } from '../ui.jsx';
 
@@ -96,6 +97,12 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
         {filas === null ? 'Buscando…' : n === 0 ? 'Sin resultados'
           : `${n} ${n === 1 ? 'visita' : 'visitas'}${total > (filas?.length ?? 0) ? ` (de ${total}; ajusta los filtros)` : ''} · ${r.unicos} visitantes · duración promedio ${r.duracionPromedio ?? '—'} h`}
       </p>
+
+      {n > 0 && (
+        <Dona titulo="Estado de las visitas" alto={200}
+          datos={Object.entries(visibles.reduce((m, v) => { const t = estadoVisita(v).texto.replace(' (autorizada)', ''); m[t] = (m[t] ?? 0) + 1; return m; }, {}))
+            .map(([nombre, valor]) => ({ nombre, valor }))} />
+      )}
 
       <div className="table-wrap card">
         <table className="tabla">

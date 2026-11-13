@@ -595,3 +595,16 @@ body { font-size: 1.0625rem; }
 .btn-peligro { background: var(--hx-error); }
 .btn-peligro:hover { background: #9E2E23; }
 @media (max-width: 480px) { .pase-detalle { grid-template-columns: 1fr; gap: 0.125rem; } .pase-detalle dd { margin-bottom: 0.5rem; } }
+
+/* v4.1.0: logos pequeños en la lista de empresas */
+.empresa-fila { display: flex; align-items: center; gap: 0.75rem; }
+.empresa-mini { width: 28px; height: 28px; flex: none; object-fit: contain; border-radius: 6px; background: var(--hx-white); }
+.empresa-mini-texto {
+  display: grid; place-items: center; font-size: 0.6875rem; font-weight: 700; color: var(--hx-navy);
+  border: 1.5px dashed var(--hx-line); background: transparent;
+}
+.link-btn {
+  padding: 0; font: 600 0.9375rem var(--font-body); color: var(--hx-navy);
+  background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.link-btn:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 4px; }

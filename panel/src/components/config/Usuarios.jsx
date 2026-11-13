@@ -11,6 +11,7 @@ export default function Usuarios({ perfil }) {
   const [nuevo, setNuevo] = useState(null);
   const [error, setError] = useState('');
   const [cred, setCred] = useState(null);
+  const [editar, setEditar] = useState(null);
   const toast = useToast();
   const soySuper = esSuperadmin(perfil);
 
@@ -65,7 +66,7 @@ export default function Usuarios({ perfil }) {
               const protegido = u.rol === 'superadmin' && !soySuper;
               return (
                 <tr key={u.id}>
-                  <td><strong>{u.nombre}</strong>{yo && ' (tú)'}<br /><span className="muted small">{u.email}</span></td>
+                  <td><strong>{u.nombre}</strong>{yo && ' (tú)'}<br /><span className="muted small">{u.email}{u.celular ? ` · ${u.celular}` : ''}</span></td>
                   <td>
                     <select aria-label={`Rol de ${u.nombre}`} value={u.rol} disabled={yo || protegido}
                       onChange={(e) => accion(u, { accion: 'actualizar', rol: e.target.value }, 'Rol actualizado.')}>
@@ -74,6 +75,7 @@ export default function Usuarios({ perfil }) {
                   </td>
                   <td><span className={`pill ${u.activo ? 'ok' : 'error'}`}>{u.activo ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="acciones-fila">
+                    {!protegido && <BotonIcono icono="editar" texto="Editar datos" onClick={() => { setError(''); setEditar({ id: u.id, nombre: u.nombre, email: u.email, celular: u.celular ?? '' }); }} />}
                     {!yo && !protegido && <>
                       <BotonIcono icono={u.activo ? 'ocultar' : 'mostrar'} texto={u.activo ? 'Desactivar' : 'Activar'}
                         onClick={() => accion(u, { accion: 'actualizar', activo: !u.activo }, u.activo ? 'Usuario desactivado.' : 'Usuario activado.')} />
@@ -101,6 +103,25 @@ export default function Usuarios({ perfil }) {
               </select></div>
             <Mensaje>{error}</Mensaje>
             <div className="dialog-actions"><button className="btn btn-compact" type="submit">Agregar usuario</button></div>
+          </form>
+        )}
+      </Dialogo>
+      <Dialogo abierto={Boolean(editar)} onCerrar={() => setEditar(null)} titulo="Editar usuario">
+        {editar && (
+          <form noValidate onSubmit={async (e) => {
+            e.preventDefault();
+            if (editar.nombre.trim().length < 3) return setError('Escribe el nombre completo.');
+            if (!EMAIL_RE.test(editar.email.trim())) return setError('Revisa el correo.');
+            try {
+              await invocar('admin-usuarios', { accion: 'actualizar', id: editar.id, nombre: editar.nombre, email: editar.email.trim().toLowerCase(), celular: editar.celular.trim() || null });
+              setEditar(null); toast('Usuario actualizado.'); cargar();
+            } catch (err) { setError(err.message); }
+          }}>
+            <div className="field"><label htmlFor="ue-nombre">Nombre completo</label><input id="ue-nombre" type="text" value={editar.nombre} onChange={(e) => setEditar({ ...editar, nombre: e.target.value })} /></div>
+            <div className="field"><label htmlFor="ue-email">Correo (también es su usuario de acceso)</label><input id="ue-email" type="email" value={editar.email} onChange={(e) => setEditar({ ...editar, email: e.target.value })} /></div>
+            <div className="field"><label htmlFor="ue-cel">Celular (opcional)</label><input id="ue-cel" type="tel" inputMode="tel" placeholder="55 1234 5678" value={editar.celular} onChange={(e) => setEditar({ ...editar, celular: e.target.value })} /></div>
+            <Mensaje>{error}</Mensaje>
+            <div className="dialog-actions"><button className="btn btn-compact" type="submit">Guardar</button></div>
           </form>
         )}
       </Dialogo>

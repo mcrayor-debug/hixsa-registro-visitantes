@@ -7,6 +7,8 @@ const trazos = {
   mostrar: <><path d="M3 12s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" /><circle cx="12" cy="12" r="2.5" /></>,
   llave: <><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l3 3" /></>,
   subir: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></>,
+  escudo: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />,
+  calendario: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></>,
 };
 export function Icono({ nombre, tamano = 18 }) {
   return (

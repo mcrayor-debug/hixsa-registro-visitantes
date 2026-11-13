@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase, invocar } from '../../lib/supabase.js';
 import { fmtFechaHora } from '../../lib/formato.js';
 import { Dialogo, Mensaje, useToast } from '../ui.jsx';
-import { BotonIcono } from '../iconos.jsx';
+import { BotonIcono, Icono } from '../iconos.jsx';
+import { comprimir } from '../../lib/imagen.js';
+import { EMAIL_RE } from '../../lib/formato.js';
+import NuevaInvitacion from '../NuevaInvitacion.jsx';
 
 const ESTADOS = {
   ninguno: ['Sin restricción', 'ok', 'Puede registrarse y entrar normalmente.'],
@@ -11,7 +14,9 @@ const ESTADOS = {
   bloqueado: ['Bloqueado', 'error', 'No puede registrar visitas ni entrar.'],
 };
 
-export default function Visitantes() {
+export default function Visitantes({ empresas = [] }) {
+  const [datos, setDatos] = useState(null);
+  const [invitar, setInvitar] = useState(null);
   const [lista, setLista] = useState([]);
   const [texto, setTexto] = useState('');
   const [filtro, setFiltro] = useState('');
@@ -21,7 +26,7 @@ export default function Visitantes() {
   const toast = useToast();
 
   const cargar = useCallback(async () => {
-    let q = supabase.from('personas').select('id, correo, nombre, apellidos, empresa, recurrente, estado_bloqueo, bloqueo_motivo, ultima_visita_at')
+    let q = supabase.from('personas').select('id, correo, nombre, apellidos, telefono, empresa, recurrente, estado_bloqueo, bloqueo_motivo, ultima_visita_at, identificacion_path')
       .order('ultima_visita_at', { ascending: false, nullsFirst: false }).limit(200);
     const t = texto.replace(/[,()*%\\]/g, ' ').trim();
     if (t) q = q.or(['nombre', 'apellidos', 'correo', 'empresa'].map((c) => `${c}.ilike.%${t}%`).join(','));
@@ -75,7 +80,10 @@ export default function Visitantes() {
                   <td><span className={`pill ${clase}`} title={p.bloqueo_motivo ?? ''}>{etiqueta}</span></td>
                   <td className="nowrap small">{p.ultima_visita_at ? fmtFechaHora.format(new Date(p.ultima_visita_at)) : '—'}</td>
                   <td className="acciones-fila">
-                    <BotonIcono icono="editar" texto="Cambiar estado del visitante"
+                    <BotonIcono icono="editar" texto="Editar datos del visitante"
+                      onClick={() => { setError(''); setDatos({ ...p, nombre: p.nombre ?? '', apellidos: p.apellidos ?? '', telefono: p.telefono ?? '', empresa: p.empresa ?? '', fotoId: null, selfie: null }); }} />
+                    {p.estado_bloqueo !== 'bloqueado' && <BotonIcono icono="calendario" texto="Nueva invitación" onClick={() => setInvitar(p)} />}
+                    <BotonIcono icono="escudo" texto="Cambiar estado del visitante"
                       onClick={() => { setError(''); setEditando({ id: p.id, nombre: `${p.nombre ?? ''} ${p.apellidos ?? ''}`.trim() || p.correo, estado: p.estado_bloqueo, motivo: p.bloqueo_motivo ?? '' }); }} />
                   </td>
                 </tr>
@@ -85,6 +93,48 @@ export default function Visitantes() {
         </table>
         {!lista.length && <p className="vacio">No hay visitantes con estos filtros.</p>}
       </div>
+
+      <Dialogo abierto={Boolean(datos)} onCerrar={() => setDatos(null)} titulo="Editar datos del visitante" ancho={560}>
+        {datos && (
+          <form noValidate onSubmit={async (e) => {
+            e.preventDefault();
+            if (!EMAIL_RE.test(datos.correo.trim())) return setError('Revisa el correo.');
+            setGuardando(true); setError('');
+            try {
+              const r = await invocar('gestionar-visitante', {
+                accion: 'editar', persona_id: datos.id, nombre: datos.nombre, apellidos: datos.apellidos, correo: datos.correo,
+                telefono: datos.telefono, empresa: datos.empresa,
+                foto_identificacion: datos.fotoId ? await comprimir(datos.fotoId) : null, selfie: datos.selfie ? await comprimir(datos.selfie) : null,
+              });
+              setDatos(null);
+              toast(`Datos actualizados en el perfil${r.visitas_actualizadas ? ` y en ${r.visitas_actualizadas} ${r.visitas_actualizadas === 1 ? 'visita próxima' : 'visitas próximas'}` : ''}.${r.pases_reenviados ? ` Se reenviaron ${r.pases_reenviados} pases al correo nuevo.` : ''}`);
+              cargar();
+            } catch (err) { setError(err.message); } finally { setGuardando(false); }
+          }}>
+            <div className="grid-2">
+              <div className="field"><label htmlFor="vd-nom">Nombre(s)</label><input id="vd-nom" type="text" maxLength={60} value={datos.nombre} onChange={(e) => setDatos({ ...datos, nombre: e.target.value })} /></div>
+              <div className="field"><label htmlFor="vd-ape">Apellidos</label><input id="vd-ape" type="text" maxLength={80} value={datos.apellidos} onChange={(e) => setDatos({ ...datos, apellidos: e.target.value })} /></div>
+            </div>
+            <div className="grid-2">
+              <div className="field"><label htmlFor="vd-cor">Correo</label><input id="vd-cor" type="email" value={datos.correo} onChange={(e) => setDatos({ ...datos, correo: e.target.value })} /></div>
+              <div className="field"><label htmlFor="vd-tel">Teléfono</label><input id="vd-tel" type="tel" value={datos.telefono} onChange={(e) => setDatos({ ...datos, telefono: e.target.value })} /></div>
+            </div>
+            <div className="field"><label htmlFor="vd-emp">Empresa de origen</label><input id="vd-emp" type="text" maxLength={120} value={datos.empresa} onChange={(e) => setDatos({ ...datos, empresa: e.target.value })} /></div>
+            <div className="grid-2">
+              <div className="field"><span className="label">Identificación</span>
+                <label className="btn btn-secondary btn-compact btn-icono"><Icono nombre="subir" /> {datos.fotoId ? datos.fotoId.name : 'Cambiar foto'}
+                  <input type="file" accept="image/*" className="sr-only" onChange={(e) => setDatos({ ...datos, fotoId: e.target.files?.[0] ?? null })} /></label></div>
+              <div className="field"><span className="label">Selfie</span>
+                <label className="btn btn-secondary btn-compact btn-icono"><Icono nombre="subir" /> {datos.selfie ? datos.selfie.name : 'Cambiar selfie'}
+                  <input type="file" accept="image/*" className="sr-only" onChange={(e) => setDatos({ ...datos, selfie: e.target.files?.[0] ?? null })} /></label></div>
+            </div>
+            <p className="hint">Los cambios aplican al perfil y a sus visitas próximas; el historial no cambia. Si cambias el correo, se reenvían los pases de sus visitas próximas.</p>
+            <Mensaje>{error}</Mensaje>
+            <div className="dialog-actions"><button className="btn btn-compact" type="submit" disabled={guardando} aria-busy={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</button></div>
+          </form>
+        )}
+      </Dialogo>
+      {invitar && <NuevaInvitacion persona={invitar} empresas={empresas} onCerrar={() => setInvitar(null)} onCreada={cargar} />}
 
       <Dialogo abierto={Boolean(editando)} onCerrar={() => setEditando(null)} titulo="Estado del visitante" ancho={540}>
         {editando && (

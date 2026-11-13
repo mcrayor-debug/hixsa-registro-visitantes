@@ -46,6 +46,7 @@ jobs:
         run: |
           deno check registrar-visita/index.ts registrar-acceso/index.ts admin-usuarios/index.ts enviar-reporte/index.ts \
             visitante-recurrente/index.ts aprobar-visita/index.ts gestionar-visitante/index.ts \
-            reenviar-pase/index.ts reporte-programado/index.ts importar-datos/index.ts borrar-perfiles/index.ts
+            reenviar-pase/index.ts reporte-programado/index.ts importar-datos/index.ts borrar-perfiles/index.ts \
+            crear-invitacion/index.ts
           deno run _shared/horario.test.ts
           deno run _shared/estadisticas.test.ts

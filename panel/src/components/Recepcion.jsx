@@ -72,7 +72,7 @@ export default function Recepcion({ paseInicial }) {
           {hoy.map((v) => (
             <li key={v.folio}>
               <button type="button" className="hoy-item" aria-current={sel?.folio === v.folio} onClick={() => setSel({ folio: v.folio, h: null })}>
-                <span className="hoy-hora">{fmtHora.format(new Date(v.entrada))}</span>
+                <span className="hoy-hora">{fmtHora.format(new Date(v.entrada))} – {fmtHora.format(new Date(v.salida))}</span>
                 <span className="hoy-datos"><strong>{v.nombre_completo}{v.personas?.estado_bloqueo && v.personas.estado_bloqueo !== 'ninguno' && <span className="alerta-punto" title="Visitante con alerta" aria-label="Visitante con alerta"> ⚠</span>}</strong><span className="muted small">{v.empresa}, visita a {v.persona_visita}</span></span>
                 <Estado {...estadoVisita(v)} />
               </button>

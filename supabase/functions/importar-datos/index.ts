@@ -51,12 +51,14 @@ Deno.serve(async (req) => {
   if (!yo) return json({ error: "Inicia sesión para continuar." }, 401);
   if (!tienePermiso(yo, "config_visitantes")) return json({ error: "Tu rol no puede importar datos." }, 403);
 
-  const p = await leerJson<{ tipo?: string; filas?: Fila[]; copiar_fotos?: boolean }>(req);
+  const p = await leerJson<{ tipo?: string; filas?: Fila[]; copiar_fotos?: boolean; sobrescribir?: boolean; simular?: boolean }>(req);
   const tipo = p?.tipo;
   const filas = Array.isArray(p?.filas) ? p!.filas! : [];
   if (tipo !== "perfiles" && tipo !== "visitas") return json({ error: "Tipo de importación inválido." }, 422);
   if (!filas.length || filas.length > 50) return json({ error: "Envía de 1 a 50 filas por lote." }, 422);
-  const copiarFotos = p?.copiar_fotos !== false;
+  const simular = p?.simular === true;          // vista previa: no escribe nada
+  const sobrescribir = p?.sobrescribir === true; // actualizar lo ya importado
+  const copiarFotos = p?.copiar_fotos !== false && !simular;
 
   const { data: empresas } = await db.from("empresas").select("id, nombre, es_principal");
   const principal = empresas?.find((e) => e.es_principal);
@@ -99,6 +101,11 @@ Deno.serve(async (req) => {
       let personaId = existente?.id as string | undefined;
 
       if (tipo === "perfiles") {
+        if (simular) {
+          const cambia = !existente || sobrescribir || ["nombre", "apellidos", "telefono", "empresa"].some((k) => !existente[k]) || (f.recurrente && !existente.recurrente);
+          resultados.push({ fila: n, estado: !existente ? "creado" : cambia ? "actualizado" : "omitido", mensaje: avisos.join(", ") });
+          continue;
+        }
         const selfie = copiarFotos && f.foto_url && !existente?.selfie_path ? await copiarFoto(db, f.foto_url, "perfiles") : null;
         if (!existente) {
           const { error } = await db.from("personas").insert({
@@ -110,7 +117,8 @@ Deno.serve(async (req) => {
           resultados.push({ fila: n, estado: "creado", mensaje: avisos.join(", ") });
         } else {
           const relleno: Fila = {};
-          for (const [k, val] of Object.entries({ nombre, apellidos, telefono, empresa })) if (!existente[k]) relleno[k] = val;
+          // Sin "sobrescribir" solo se llenan los datos vacíos; con él, se reemplazan los distintos
+          for (const [k, val] of Object.entries({ nombre, apellidos, telefono, empresa })) if (!existente[k] || (sobrescribir && existente[k] !== val)) relleno[k] = val;
           if (selfie) relleno.selfie_path = selfie;
           if (f.recurrente && !existente.recurrente) relleno.recurrente = true;
           if (Object.keys(relleno).length) await db.from("personas").update(relleno).eq("id", existente.id);
@@ -122,14 +130,17 @@ Deno.serve(async (req) => {
       // ---------- visitas ----------
       const origenId = txt(f.origen_id, 120);
       if (!origenId) { resultados.push({ fila: n, estado: "error", mensaje: "Falta el identificador de la fila (Row ID o folio)." }); continue; }
-      const { data: dup } = await db.from("visitantes").select("id").eq("origen", origen).eq("origen_id", origenId).maybeSingle();
-      if (dup) { resultados.push({ fila: n, estado: "omitido", mensaje: "Ya importada." }); continue; }
+      const { data: dup } = await db.from("visitantes").select("id, folio, nombre_completo, identificacion_path, selfie_path")
+        .eq("origen", origen).eq("origen_id", origenId).maybeSingle();
+      if (dup && !sobrescribir) { resultados.push({ fila: n, estado: "omitido", mensaje: "Ya importada." }); continue; }
+      if (dup && dup.nombre_completo === "Visitante eliminado") { resultados.push({ fila: n, estado: "omitido", mensaje: "Anonimizada: no se sobrescribe." }); continue; }
 
       let entrada = fecha(f.entrada), salida = fecha(f.salida);
       const llegada = fecha(f.llegada), salidaReal = fecha(f.salida_real);
       if (!entrada) entrada = llegada;
       if (!entrada) { resultados.push({ fila: n, estado: "error", mensaje: "Sin fecha de entrada ni de llegada." }); continue; }
       if (!salida || salida <= entrada || salida.getTime() - entrada.getTime() > 7 * 24 * HORA) salida = new Date(entrada.getTime() + HORA);
+      if (simular) { resultados.push({ fila: n, estado: dup ? "actualizado" : "creado", mensaje: avisos.join(", ") }); continue; }
 
       if (!personaId) {
         const { data: nueva, error } = await db.from("personas").insert({ correo, nombre, apellidos, telefono, empresa, origen }).select("id").single();
@@ -155,10 +166,10 @@ Deno.serve(async (req) => {
       }
       const equipoTipo = txt(f.equipo_tipo, 40) ? (EQUIPOS.includes(txt(f.equipo_tipo, 40)) ? txt(f.equipo_tipo, 40) : "Otro") : null;
       const comentarios = [txt(f.comentarios, 300), f.registrado_por ? `Registrado por (Glide): ${txt(f.registrado_por, 80)}` : ""].filter(Boolean).join(". ") || null;
-      const idPath = copiarFotos && f.foto_id_url ? await copiarFoto(db, f.foto_id_url, "identificaciones") : null;
-      const selfiePath = copiarFotos && f.foto_user_url ? await copiarFoto(db, f.foto_user_url, "selfies") : null;
+      const idPath = copiarFotos && f.foto_id_url && !dup?.identificacion_path ? await copiarFoto(db, f.foto_id_url, "identificaciones") : null;
+      const selfiePath = copiarFotos && f.foto_user_url && !dup?.selfie_path ? await copiarFoto(db, f.foto_user_url, "selfies") : null;
 
-      const { data: v, error } = await db.from("visitantes").insert({
+      const registro: Fila = {
         nombre_completo: `${nombre} ${apellidos}`.slice(0, 120), nombre, apellidos, empresa, correo, telefono,
         persona_visita: personaVisita, anfitrion_id: anfitrionId, empresa_visita_id: empVis?.id,
         motivo: MOTIVOS.includes(txt(f.motivo)) ? txt(f.motivo) : "Otro", comentarios, acepta_aviso: true,
@@ -169,7 +180,18 @@ Deno.serve(async (req) => {
         identificacion_path: idPath, selfie_path: selfiePath,
         equipo_tipo: equipoTipo, equipo_marca: equipoTipo ? txt(f.equipo_marca, 60) || null : null, equipo_serie: equipoTipo ? txt(f.equipo_serie, 80) || null : null,
         persona_id: personaId, estado_aprobacion: "aprobada", aprobacion_por: "sistema", origen, origen_id: origenId,
-      }).select("id, folio").single();
+      };
+      if (dup) {
+        // Sobrescribir: se actualiza la visita; las fotos solo si no tenía
+        if (!idPath) delete registro.identificacion_path;
+        if (!selfiePath) delete registro.selfie_path;
+        const { error } = await db.from("visitantes").update(registro).eq("id", dup.id);
+        if (error) throw error;
+        creados++;
+        resultados.push({ fila: n, estado: "actualizado", mensaje: [dup.folio, ...avisos].join(", ") });
+        continue;
+      }
+      const { data: v, error } = await db.from("visitantes").insert(registro).select("id, folio").single();
       if (error) throw error;
       const intentos = Math.min(Number(f.escaneos_expirados) || 0, 20);
       if (intentos) {

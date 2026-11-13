@@ -87,3 +87,16 @@ cd supabase/functions && DENO_NO_PACKAGE_JSON=1 deno check */index.ts
 - Importación: `panel/src/lib/importar.js` normaliza CSV; `importar-datos` valida y guarda (origen + origen_id evita duplicados;
   fotos solo de dominios de Google/Glide). Visitas importadas: `origen != 'formulario'`.
 - Borrado: `borrar-perfiles` (solo SUPERADMIN) anonimiza visitas y borra perfil y fotos; nunca bloqueados ni con visitas próximas.
+
+### Documentación (fase 4)
+- Fuente en Markdown: `docs/GUIA_DESPLIEGUE.md`, `docs/DOCUMENTACION_TECNICA.md`, `docs/MANUAL_VISITANTE.md`, `docs/MANUAL_PERSONAL.md`.
+  Capturas en `docs/img/v4/`, diagramas Mermaid en `docs/diagramas/*.mmd` (+ PNG).
+- Si cambias una pantalla o un flujo, **actualiza el manual correspondiente** y su captura.
+- Dependencias: no usar `npm audit fix --force`. Vite queda en 5.4 a propósito (ver documentación técnica §11).
+
+### Versión 4.1.0
+- `crear-invitacion`: invitación creada por el personal (`visitantes.creado_por`). El QR incluye el correo (huella), por eso editar el correo de un visitante reenvía sus pases futuros (`gestionar-visitante` acción `editar`).
+- Calendario: `_shared/pase.ts` → `correosCalendario()` = correos configurados + correo de recepción.
+- `importar-datos` acepta `simular` (vista previa sin escribir) y `sobrescribir`.
+- Fotos compartidas en `_shared/fotos.ts`. Gráficas de dona en `panel/src/components/Dona.jsx` (máx. 5 partes + Otros).
+- Favicon: `public/img/favicon.svg` (+ `favicon-32.png`, `apple-touch-icon.png`, `icon-512.png`).

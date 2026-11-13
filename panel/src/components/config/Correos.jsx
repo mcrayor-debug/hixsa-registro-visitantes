@@ -56,7 +56,7 @@ export default function Correos({ recargar, perfil }) {
           <p className="hint">Se usan al enviar reportes y en los reportes automáticos. Máximo 10.</p></div>
         <div className="field"><label htmlFor="c-cal">Correos para Google Calendar</label>
           <textarea id="c-cal" rows={2} placeholder="Un correo por línea" value={calendario} onChange={(e) => setCalendario(e.target.value)} />
-          <p className="hint">Reciben <strong>todas</strong> las visitas como invitación de calendario (.ics). Si el anfitrión rechaza, se cancela. Máximo 10.</p></div>
+          <p className="hint">Reciben <strong>todas</strong> las visitas como invitación de calendario (.ics), junto con el correo de recepción, que se incluye automáticamente. Si el anfitrión rechaza, se cancela. Máximo 10.</p></div>
         <div className="field field-corto"><label htmlFor="c-ant">Llegada temprana permitida (minutos)</label>
           <input id="c-ant" type="number" min="0" max="240" step="1" value={c.minutos_anticipacion ?? 10} onChange={(e) => setC({ ...c, minutos_anticipacion: e.target.value })} />
           <p className="hint">Minutos antes de su hora en los que el visitante ya puede entrar. Antes de eso, Recepción verá ACCESO NO PERMITIDO.</p></div>
@@ -66,6 +66,15 @@ export default function Correos({ recargar, perfil }) {
         <Mensaje>{error}</Mensaje>
         <button className="btn btn-compact" type="submit">Guardar</button>
       </form>
+      <div className="prueba-reportes">
+        <h3>Calendario</h3>
+        <p className="muted small">Envía a recepción y a los correos de calendario las invitaciones de las visitas próximas (útil después de agregar un correo). Máximo 40 por vez.</p>
+        <button type="button" className="btn btn-secondary btn-compact" disabled={Boolean(probando)} aria-busy={probando === 'cal'} onClick={async () => {
+          setProbando('cal');
+          try { const r = await invocar('reenviar-pase', { accion: 'sincronizar_calendario' }); toast(`Calendario sincronizado: ${r.enviadas} de ${r.visitas} visitas próximas.`); }
+          catch (e) { toast(e.message); } finally { setProbando(''); }
+        }}>{probando === 'cal' ? 'Sincronizando…' : 'Sincronizar visitas próximas'}</button>
+      </div>
       {esSuperadmin(perfil) && (
         <div className="prueba-reportes">
           <h3>Reportes automáticos</h3>
