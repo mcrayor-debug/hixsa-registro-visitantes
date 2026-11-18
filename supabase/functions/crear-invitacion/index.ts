@@ -7,11 +7,12 @@
 // =====================================================================
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
-import { filtroAuditoria, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
+import { filtroAuditoria, registrarCambio, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
 import { botonCorreo, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
 import { enviarPase } from "../_shared/pase.ts";
 import { sha256Hex, tokenAleatorio } from "../_shared/tokens.ts";
+import { cargarFestivos, validarDiasHabiles } from "../_shared/habiles.ts";
 
 const MOTIVOS = ["Reunión", "Entrevista", "Proveedor o servicio", "Entrega o paquetería", "Otro"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,6 +41,8 @@ Deno.serve(async (req) => {
   if (entrada.getTime() < Date.now() - 2 * HORA) return json({ error: "La entrada no puede ser en el pasado." }, 422);
   if (entrada.getTime() > Date.now() + 90 * 24 * HORA) return json({ error: "Solo se aceptan visitas en los próximos 90 días." }, 422);
   if (salida <= entrada || salida.getTime() - entrada.getTime() > 7 * 24 * HORA) return json({ error: "La salida debe ser después de la entrada (máximo 7 días)." }, 422);
+  const inhabil = validarDiasHabiles(entrada.toISOString(), salida.toISOString(), await cargarFestivos(db));
+  if (inhabil.entrada || inhabil.salida) return json({ error: inhabil.entrada ?? inhabil.salida }, 422);
 
   const { data: empresa } = await db.from("empresas").select("id, nombre, activa").eq("id", empresaId).maybeSingle();
   const solo = await filtroAuditoria(db);
@@ -84,6 +87,8 @@ Deno.serve(async (req) => {
     return json({ error: "No se pudo crear la invitación." }, 500);
   }
 
+  await registrarCambio(db, yo, "visitantes", "invitacion", visita.folio, null,
+    { folio: visita.folio, nombre: visita.nombre_completo, correo: visita.correo, entrada: visita.entrada, empresa_visita: empresa.nombre });
   const r = await enviarPase(db, visita, { empresaVisita: empresa.nombre, aprueba: restringido ? (pideAnfitrion ? "anfitrion" : "recepcion") : null });
 
   // Aviso al anfitrión (o solicitud de aprobación si el visitante está restringido)

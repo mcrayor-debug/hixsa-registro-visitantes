@@ -31,4 +31,11 @@ ok("anfitrión y área", E.porAnfitrion(datos)[0].area === "Ventas");
 const ics = crearIcs({ uid: "HX-1@hixsa", inicio: "2026-11-10T16:00:00Z", fin: "2026-11-10T18:00:00Z", titulo: "Visita, HIXSA; prueba", descripcion: "Línea 1\nLínea 2", lugar: "Torre Mitikah", organizador: { nombre: "HIXSA", correo: "r@x.mx" }, asistentes: ["a@x.mx"], metodo: "REQUEST" });
 ok("ICS válido (CRLF, fechas UTC, escapes)", ics.includes("\r\nDTSTART:20261110T160000Z\r\n") && ics.includes("SUMMARY:Visita\\, HIXSA\\; prueba") && ics.includes("ATTENDEE") && ics.split("\r\n").every((l) => l.length <= 75));
 ok("enlace de Google Calendar", enlaceGoogle({ titulo: "X", inicio: "2026-11-10T16:00:00Z", fin: "2026-11-10T18:00:00Z", descripcion: "", lugar: "" }).includes("dates=20261110T160000Z%2F20261110T180000Z"));
+const F = new Set(["2026-11-16"]); // lunes festivo (Revolución)
+ok("hábil: sábado no, lunes festivo no, martes sí", !E.esDiaHabil("2026-11-14") && !E.esDiaHabil("2026-11-16", F) && E.esDiaHabil("2026-11-17", F));
+ok("día hábil anterior al lunes 9-nov = viernes 6-nov", E.diaHabilAnterior("2026-11-09") === "2026-11-06");
+ok("día hábil anterior al martes 17-nov con lunes festivo = viernes 13-nov", E.diaHabilAnterior("2026-11-17", F) === "2026-11-13");
+ok("siguiente día hábil del viernes 13-nov con lunes festivo = martes 17-nov", E.siguienteDiaHabil("2026-11-13", F) === "2026-11-17");
+ok("semana laboral anterior al miércoles 11-nov = 2 al 6-nov", JSON.stringify(E.semanaLaboralAnterior(ahora)) === '{"desde":"2026-11-02","hasta":"2026-11-06"}');
+ok("días hábiles de noviembre 2026 con 16-nov festivo = 20", E.diasHabiles("2026-11-01", "2026-11-30", F) === 20);
 if (fallas) Deno.exit(1);

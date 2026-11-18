@@ -18,10 +18,18 @@ export default function Reportes({ config, perfil, empresas = [] }) {
   const [visitas, setVisitas] = useState(null);
   const [historial, setHistorial] = useState(new Set());
   const [correo, setCorreo] = useState(false);
-  const [envio, setEnvio] = useState(() => ({ tipo: 'diario', fecha: E.sumarDias(E.hoyCDMX(), -1), enviando: false }));
+  const [envio, setEnvio] = useState(() => ({ tipo: 'diario', fecha: E.diaHabilAnterior(E.hoyCDMX()), enviando: false }));
+  const [festivos, setFestivos] = useState(new Set());
+  useEffect(() => {
+    supabase.from('dias_festivos').select('fecha').then(({ data }) => {
+      const f = new Set((data ?? []).map((x) => x.fecha));
+      setFestivos(f); setEnvio((x) => ({ ...x, fecha: E.diaHabilAnterior(E.hoyCDMX(), f) }));
+    });
+  }, []);
   const exporta = puedeExportar(perfil);
   const toast = useToast();
-  const rango = tipo === 'semanal' ? E.semanaDe(semana) : E.mesDe(mes);
+  // Semanal: lunes a viernes (igual que el reporte por correo)
+  const rango = tipo === 'semanal' ? E.semanaLaboralDe(semana) : E.mesDe(mes);
   const tolerancia = config?.tolerancia_min ?? 15;
 
   useEffect(() => {
@@ -47,7 +55,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
     return {
       r, nr: E.nuevosVsRecurrentes(visitas, historial), porDia: E.porDiaLaboral(visitas), pico: E.horasPico(visitas),
       expiradas: visitas.filter((v) => E.sinUso(v)), top: E.topVisitantes(visitas, 10),
-      ocupacion: E.ocupacionPorFranja(visitas, E.diasHabiles(rango.desde, rango.hasta)), anfitriones: E.porAnfitrion(visitas),
+      ocupacion: E.ocupacionPorFranja(visitas, E.diasHabiles(rango.desde, rango.hasta, festivos)), anfitriones: E.porAnfitrion(visitas),
     };
   }, [visitas, historial, tolerancia]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -80,28 +88,10 @@ export default function Reportes({ config, perfil, empresas = [] }) {
 
   return (
     <div className="reportes">
-      <div className="card filtros reportes-filtros">
-        <div className="filtros-rapidos" role="tablist" aria-label="Tipo de reporte">
-          <button type="button" className="chip-btn chip-grupo" aria-pressed={tipo === 'semanal'} onClick={() => setTipo('semanal')}>Semanal</button>
-          <button type="button" className="chip-btn chip-grupo" aria-pressed={tipo === 'mensual'} onClick={() => setTipo('mensual')}>Mensual</button>
-        </div>
-        <div className="filtros-grid">
-          {tipo === 'semanal'
-            ? <div className="field"><label htmlFor="rp-semana">Semana que contiene</label><input id="rp-semana" type="date" value={semana} onChange={(e) => e.target.value && setSemana(e.target.value)} /></div>
-            : <div className="field"><label htmlFor="rp-mes">Mes</label><input id="rp-mes" type="month" value={mes} onChange={(e) => e.target.value && setMes(e.target.value)} /></div>}
-          <div className="field"><label htmlFor="rp-emp">Empresa a visitar</label>
-            <select id="rp-emp" value={empresa} onChange={(e) => setEmpresa(e.target.value)}>
-              {!config?.modo_auditoria && <option value="">Todas</option>}
-              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-            </select></div>
-          <p className="muted small reportes-periodo">Periodo: <strong>{rango.desde}</strong> a <strong>{rango.hasta}</strong></p>
-        </div>
-      </div>
-
       {exporta && (
         <div className="card envio-manual">
           <div><strong>Enviar reporte a los destinatarios ahora</strong>
-            <p className="muted small">El mismo correo que sale solo a las 07:00. Útil si no llegó o para reenviar otro día.</p></div>
+            <p className="muted small">Diario: el día hábil elegido (el lunes se envía el del viernes). Semanal: lunes a viernes de la semana elegida.</p></div>
           <div className="envio-manual-campos">
             <select aria-label="Tipo de reporte" value={envio.tipo} onChange={(e) => setEnvio({ ...envio, tipo: e.target.value })}>
               <option value="diario">Diario</option><option value="semanal">Semanal</option></select>
@@ -114,6 +104,24 @@ export default function Reportes({ config, perfil, empresas = [] }) {
           </div>
         </div>
       )}
+
+      <div className="card filtros reportes-filtros">
+        <div className="filtros-rapidos" role="tablist" aria-label="Tipo de reporte">
+          <button type="button" className="chip-btn chip-grupo" aria-pressed={tipo === 'semanal'} onClick={() => setTipo('semanal')}>Semanal</button>
+          <button type="button" className="chip-btn chip-grupo" aria-pressed={tipo === 'mensual'} onClick={() => setTipo('mensual')}>Mensual</button>
+        </div>
+        <div className="filtros-grid">
+          {tipo === 'semanal'
+            ? <div className="field"><label htmlFor="rp-semana">Semana (lunes a viernes) que contiene</label><input id="rp-semana" type="date" value={semana} onChange={(e) => e.target.value && setSemana(e.target.value)} /></div>
+            : <div className="field"><label htmlFor="rp-mes">Mes</label><input id="rp-mes" type="month" value={mes} onChange={(e) => e.target.value && setMes(e.target.value)} /></div>}
+          <div className="field"><label htmlFor="rp-emp">Empresa a visitar</label>
+            <select id="rp-emp" value={empresa} onChange={(e) => setEmpresa(e.target.value)}>
+              {!config?.modo_auditoria && <option value="">Todas</option>}
+              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select></div>
+          <p className="muted small reportes-periodo">Periodo: <strong>{rango.desde}</strong> a <strong>{rango.hasta}</strong></p>
+        </div>
+      </div>
 
       {!d ? <p className="muted">Calculando…</p> : (
         <>

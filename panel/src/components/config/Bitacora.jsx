@@ -2,14 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase.js';
 import { fmtFechaHora, fmtHora } from '../../lib/formato.js';
 
-const TABLAS = { roles: 'Rol', empresas: 'Empresa', anfitriones: 'Anfitrión', anfitrion_empresas: 'Empresa de anfitrión', configuracion: 'Configuración', perfiles: 'Usuario', personas: 'Visitante', visitantes: 'Visitas' };
-const ACCIONES = { alta: 'Alta', edicion: 'Edición', baja: 'Baja' };
+const TABLAS = { roles: 'Rol', empresas: 'Empresa', anfitriones: 'Anfitrión', anfitrion_empresas: 'Empresa de anfitrión', configuracion: 'Configuración', perfiles: 'Usuario', personas: 'Visitante', visitantes: 'Visitas', dias_festivos: 'Día festivo' };
+const ACCIONES = { alta: 'Alta', edicion: 'Edición', baja: 'Baja', reenvio: 'Reenvío de pase', invitacion: 'Nueva invitación', depuracion: 'Depuración' };
 const ORIGEN = { panel: 'Envío manual', automatico: 'Reporte automático', programado: 'Reporte automático', 'claude-code': 'Claude Code' };
 const POR_PAGINA = 25;
 const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(d);
 const fmtDiaLargo = new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-const etiqueta = (b) => { const f = b.despues ?? b.antes ?? {}; return f.nombre ?? f.email ?? f.correo ?? (b.tabla === 'configuracion' ? 'General' : b.registro_id ?? ''); };
+const etiqueta = (b) => {
+  const f = b.despues ?? b.antes ?? {};
+  if (b.accion === 'reenvio' || b.accion === 'invitacion') return `${f.folio ?? ''} · ${f.nombre ?? ''} → ${f.correo ?? ''}`;
+  if (b.accion === 'depuracion') return `${f.visitas ?? 0} visitas (modo ${f.modo}${f.tipo_visitante && f.tipo_visitante !== 'todos' ? `, ${f.tipo_visitante}` : ''})`;
+  return f.nombre ?? f.email ?? f.correo ?? (b.tabla === 'configuracion' ? 'General' : b.registro_id ?? '');
+};
 const cambios = (b) => {
   if (b.accion !== 'edicion' || !b.antes || !b.despues) return '';
   const ignorar = new Set(['updated_at', 'updated_by', 'created_at']);
@@ -62,7 +67,7 @@ export default function Bitacora() {
             <h3>{fmtDiaLargo.format(g.fecha).replace(/^./, (c) => c.toUpperCase())}</h3>
             <ul>{g.filas.map((b) => (
               <li key={b.id}><span className="bit-hora">{fmtHora.format(new Date(b.created_at))}</span>
-                <span><strong>{ACCIONES[b.accion]}</strong> de {TABLAS[b.tabla] ?? b.tabla}: {etiqueta(b)}
+                <span><strong>{ACCIONES[b.accion]}</strong>{['reenvio', 'invitacion', 'depuracion'].includes(b.accion) ? '' : ` de ${TABLAS[b.tabla] ?? b.tabla}`}: {etiqueta(b)}
                   <span className="muted small"> · {b.usuario_email ?? 'Sistema'}{cambios(b) ? ` · cambió: ${cambios(b)}` : ''}</span></span></li>
             ))}</ul>
           </div>

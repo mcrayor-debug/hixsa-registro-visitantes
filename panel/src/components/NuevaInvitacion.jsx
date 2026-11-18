@@ -4,8 +4,10 @@ import { MOTIVOS } from '../lib/formato.js';
 import { Dialogo, Mensaje, useToast } from './ui.jsx';
 
 const local = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-function horarioInicial() {
+const habil = (d, festivos) => d.getDay() >= 1 && d.getDay() <= 5 && !festivos.has(local(d).slice(0, 10));
+function horarioInicial(festivos = new Set()) {
   const e = new Date(); e.setMinutes(0, 0, 0); e.setHours(e.getHours() + 1);
+  if (!habil(e, festivos)) { do { e.setDate(e.getDate() + 1); } while (!habil(e, festivos)); e.setHours(10, 0, 0, 0); }
   return { entrada: local(e), salida: local(new Date(e.getTime() + 2 * 3600000)) };
 }
 
@@ -14,11 +16,17 @@ export default function NuevaInvitacion({ persona, empresas = [], onCerrar, onCr
   const principal = empresas.find((e) => e.es_principal) ?? empresas[0];
   const [f, setF] = useState(() => ({ empresa: principal?.id ?? '', anfitrion: '', otro: '', motivo: 'Reunión', comentarios: '', ...horarioInicial() }));
   const [anfitriones, setAnfitriones] = useState([]);
+  const [festivos, setFestivos] = useState(new Set());
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
+    supabase.from('dias_festivos').select('fecha').then(({ data }) => {
+      const f = new Set((data ?? []).map((x) => x.fecha));
+      setFestivos(f);
+      setF((x) => (habil(new Date(x.entrada), f) ? x : { ...x, ...horarioInicial(f) }));
+    });
     supabase.from('anfitriones').select('id, nombre, area, anfitrion_empresas(empresa_id)').eq('activo', true).order('nombre')
       .then(({ data }) => setAnfitriones((data ?? []).map((a) => ({ ...a, empresas: a.anfitrion_empresas.map((x) => x.empresa_id) }))));
   }, []);
@@ -31,6 +39,7 @@ export default function NuevaInvitacion({ persona, empresas = [], onCerrar, onCr
     if (!f.anfitrion) return setError('Elige al anfitrión.');
     if (f.anfitrion === 'otro' && f.otro.trim().length < 3) return setError('Escribe a quién visita.');
     if (!f.entrada || !f.salida || new Date(f.salida) <= new Date(f.entrada)) return setError('La salida debe ser después de la entrada.');
+    if (!habil(new Date(f.entrada), festivos) || !habil(new Date(f.salida), festivos)) return setError('Las visitas se agendan de lunes a viernes, sin días festivos.');
     setEnviando(true); setError('');
     try {
       const r = await invocar('crear-invitacion', {

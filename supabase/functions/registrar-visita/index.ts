@@ -11,6 +11,7 @@ import { clienteServicio } from "../_shared/supabase.ts";
 import { botonCorreo, EMAIL_RE, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
 import { enviarPase } from "../_shared/pase.ts";
+import { cargarFestivos, validarDiasHabiles } from "../_shared/habiles.ts";
 import { filtroAuditoria } from "../_shared/auth.ts";
 import { sha256Hex, tokenAleatorio, TOKEN_RE } from "../_shared/tokens.ts";
 
@@ -121,6 +122,9 @@ Deno.serve(async (req) => {
   if (Object.keys(campos).length) return json({ error: "Revisa los datos marcados.", campos }, 422);
 
   const db = clienteServicio();
+  // Entrada y salida en día hábil (lunes a viernes, sin festivos)
+  const inhabil = validarDiasHabiles(datos.entrada!, datos.salida!, await cargarFestivos(db));
+  if (inhabil.entrada || inhabil.salida) return json({ error: "Revisa los datos marcados.", campos: inhabil }, 422);
   const { count } = await db.from("visitantes").select("id", { count: "exact", head: true })
     .eq("correo", datos.correo).gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
   if ((count ?? 0) >= 5) return json({ error: "Demasiados registros seguidos. Espera unos minutos." }, 429);

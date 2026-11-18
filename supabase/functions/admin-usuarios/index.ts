@@ -17,6 +17,7 @@ interface Peticion {
   rol?: string;
   activo?: boolean;
   celular?: string | null;
+  foto_path?: string | null;
   restablecer_password?: boolean;
 }
 
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
   // ---------- listar ----------
   if (p.accion === "listar") {
     const { data, error } = await db.from("perfiles")
-      .select("id, email, nombre, rol, activo, celular, created_at").order("created_at", { ascending: true });
+      .select("id, email, nombre, rol, activo, celular, foto_path, created_at").order("created_at", { ascending: true });
     if (error) return json({ error: "No se pudo leer la lista de usuarios." }, 500);
     return json({ usuarios: data });
   }
@@ -124,6 +125,13 @@ Deno.serve(async (req) => {
       const cel = tel ? (tel.startsWith("+") ? "+" : "") + tel.replace(/\D/g, "") : null;
       if (cel && !/^\+?[0-9]{10,15}$/.test(cel)) return json({ error: "El celular debe tener de 10 a 15 dígitos." }, 422);
       cambios.celular = cel;
+    }
+    if (p.foto_path !== undefined) {
+      // La foto la sube el panel al bucket privado "usuarios", en la carpeta del propio usuario
+      if (p.foto_path !== null && !new RegExp(`^${objetivo.id}/[0-9a-f-]{36}\\.(jpg|png|webp)$`).test(String(p.foto_path))) {
+        return json({ error: "Foto inválida." }, 422);
+      }
+      cambios.foto_path = p.foto_path;
     }
     let nuevoCorreo: string | null = null;
     if (p.email !== undefined && String(p.email).trim().toLowerCase() !== objetivo.email.toLowerCase()) {

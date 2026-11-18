@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { invocar } from '../../lib/supabase.js';
 import { descargarPlantilla, detectarFormato, leerCsv, normalizar, revisar } from '../../lib/importar.js';
-import { esSuperadmin } from '../../lib/permisos.js';
 import { Mensaje, useToast } from '../ui.jsx';
 import { Icono } from '../iconos.jsx';
+import Depurar from './Depurar.jsx';
 
 const FORMATOS = { glide_perfiles: 'Glide: visitantes (perfiles)', glide_visitas: 'Glide: visitas', plantilla: 'Plantilla HIXSA' };
 
@@ -11,7 +11,7 @@ export default function Datos({ perfil }) {
   return (
     <div className="config-col">
       <Importar />
-      {esSuperadmin(perfil) ? <Borrar /> : <section className="card"><h2>Borrado de perfiles</h2><p className="muted">Solo un SUPERADMIN puede borrar perfiles de visitantes.</p></section>}
+      <Depurar perfil={perfil} />
     </div>
   );
 }
@@ -110,57 +110,6 @@ function Importar() {
           {cuenta('error') > 0 && <details><summary>Errores del servidor</summary><ul className="small">{resultados.filter((x) => x.estado === 'error').map((x) => <li key={x.fila}>Fila {x.fila}: {x.mensaje}</li>)}</ul></details>}
         </div>
       )}
-    </section>
-  );
-}
-
-function Borrar() {
-  const [f, setF] = useState({ tipo: 'no_recurrentes', sin_visitas_desde: '', empresa: '' });
-  const [vista, setVista] = useState(null);
-  const [confirmacion, setConfirmacion] = useState('');
-  const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState('');
-  const toast = useToast();
-  const filtros = { ...f, sin_visitas_desde: f.sin_visitas_desde || undefined, empresa: f.empresa || undefined };
-
-  async function previa() {
-    setOcupado(true); setError(''); setConfirmacion('');
-    try { setVista(await invocar('borrar-perfiles', { filtros, confirmar: false })); } catch (e) { setError(e.message); } finally { setOcupado(false); }
-  }
-  async function borrar() {
-    setOcupado(true); setError('');
-    try {
-      const r = await invocar('borrar-perfiles', { filtros, confirmar: true, confirmacion });
-      toast(`Se borraron ${r.borrados} perfiles y ${r.fotos_borradas} fotos. El historial quedó anonimizado.`);
-      setVista(null); setConfirmacion('');
-    } catch (e) { setError(e.message); } finally { setOcupado(false); }
-  }
-  return (
-    <section className="card borrado" aria-labelledby="bor-titulo">
-      <h2 id="bor-titulo">Borrado de perfiles de visitantes</h2>
-      <p className="muted">Borra el perfil y sus fotos, y <strong>anonimiza</strong> sus visitas (las estadísticas se conservan). Nunca se borran visitantes con visitas próximas ni con bloqueo vigente. <strong>No se puede deshacer.</strong></p>
-      <div className="filtros-grid">
-        <div className="field"><label htmlFor="b-tipo">Perfiles</label>
-          <select id="b-tipo" value={f.tipo} onChange={(e) => { setF({ ...f, tipo: e.target.value }); setVista(null); }}>
-            <option value="no_recurrentes">No recurrentes</option><option value="recurrentes">Recurrentes</option><option value="todos">Todos</option></select></div>
-        <div className="field"><label htmlFor="b-fecha">Sin visitas desde</label>
-          <input id="b-fecha" type="date" value={f.sin_visitas_desde} onChange={(e) => { setF({ ...f, sin_visitas_desde: e.target.value }); setVista(null); }} /></div>
-        <div className="field"><label htmlFor="b-emp">Empresa de origen</label>
-          <input id="b-emp" type="text" maxLength={80} value={f.empresa} onChange={(e) => { setF({ ...f, empresa: e.target.value }); setVista(null); }} /></div>
-        <button type="button" className="btn btn-secondary btn-compact" disabled={ocupado} onClick={previa}>Vista previa</button>
-      </div>
-      {vista && (
-        <div className="borrado-previa">
-          <p><strong>{vista.total}</strong> perfiles se borrarían. Excluidos: {vista.excluidos_proximas} con visitas próximas y {vista.excluidos_bloqueo} con bloqueo.</p>
-          {vista.muestra.length > 0 && <ul className="small">{vista.muestra.map((m, i) => <li key={i}>{m.nombre || 'Sin nombre'} · {m.empresa} · última visita {m.ultima_visita ? m.ultima_visita.slice(0, 10) : '—'}</li>)}</ul>}
-          {vista.total > 0 && <>
-            <div className="field field-corto"><label htmlFor="b-conf">Escribe BORRAR para confirmar</label>
-              <input id="b-conf" type="text" autoComplete="off" value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
-            <button type="button" className="btn btn-peligro btn-compact" disabled={ocupado || confirmacion !== 'BORRAR'} onClick={borrar}>{ocupado ? 'Borrando…' : `Borrar ${vista.total} perfiles`}</button>
-          </>}
-        </div>
-      )}
-      <Mensaje>{error}</Mensaje>
     </section>
   );
 }

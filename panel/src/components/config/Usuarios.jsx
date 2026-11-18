@@ -4,6 +4,8 @@ import { EMAIL_RE } from '../../lib/formato.js';
 import { esSuperadmin } from '../../lib/permisos.js';
 import { Dialogo, Mensaje, useToast } from '../ui.jsx';
 import { BotonIcono, Icono } from '../iconos.jsx';
+import Avatar from '../Avatar.jsx';
+import { quitarFotoUsuario, subirFotoUsuario } from '../../lib/usuarios.js';
 
 export default function Usuarios({ perfil }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -66,7 +68,7 @@ export default function Usuarios({ perfil }) {
               const protegido = u.rol === 'superadmin' && !soySuper;
               return (
                 <tr key={u.id}>
-                  <td><strong>{u.nombre}</strong>{yo && ' (tú)'}<br /><span className="muted small">{u.email}{u.celular ? ` · ${u.celular}` : ''}</span></td>
+                  <td><div className="persona"><Avatar usuario={u} tamano={36} /><span><strong>{u.nombre}</strong>{yo && ' (tú)'}<br /><span className="muted small">{u.email}{u.celular ? ` · ${u.celular}` : ''}</span></span></div></td>
                   <td>
                     <select aria-label={`Rol de ${u.nombre}`} value={u.rol} disabled={yo || protegido}
                       onChange={(e) => accion(u, { accion: 'actualizar', rol: e.target.value }, 'Rol actualizado.')}>
@@ -75,7 +77,7 @@ export default function Usuarios({ perfil }) {
                   </td>
                   <td><span className={`pill ${u.activo ? 'ok' : 'error'}`}>{u.activo ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="acciones-fila">
-                    {!protegido && <BotonIcono icono="editar" texto="Editar datos" onClick={() => { setError(''); setEditar({ id: u.id, nombre: u.nombre, email: u.email, celular: u.celular ?? '' }); }} />}
+                    {!protegido && <BotonIcono icono="editar" texto="Editar datos" onClick={() => { setError(''); setEditar({ id: u.id, nombre: u.nombre, email: u.email, celular: u.celular ?? '', foto_path: u.foto_path, foto: null }); }} />}
                     {!yo && !protegido && <>
                       <BotonIcono icono={u.activo ? 'ocultar' : 'mostrar'} texto={u.activo ? 'Desactivar' : 'Activar'}
                         onClick={() => accion(u, { accion: 'actualizar', activo: !u.activo }, u.activo ? 'Usuario desactivado.' : 'Usuario activado.')} />
@@ -113,12 +115,18 @@ export default function Usuarios({ perfil }) {
             if (editar.nombre.trim().length < 3) return setError('Escribe el nombre completo.');
             if (!EMAIL_RE.test(editar.email.trim())) return setError('Revisa el correo.');
             try {
-              await invocar('admin-usuarios', { accion: 'actualizar', id: editar.id, nombre: editar.nombre, email: editar.email.trim().toLowerCase(), celular: editar.celular.trim() || null });
+              const foto = editar.foto ? await subirFotoUsuario(editar.id, editar.foto) : undefined;
+              await invocar('admin-usuarios', { accion: 'actualizar', id: editar.id, nombre: editar.nombre, email: editar.email.trim().toLowerCase(), celular: editar.celular.trim() || null, foto_path: foto });
+              if (foto && editar.foto_path) await quitarFotoUsuario(editar.foto_path);
               setEditar(null); toast('Usuario actualizado.'); cargar();
             } catch (err) { setError(err.message); }
           }}>
             <div className="field"><label htmlFor="ue-nombre">Nombre completo</label><input id="ue-nombre" type="text" value={editar.nombre} onChange={(e) => setEditar({ ...editar, nombre: e.target.value })} /></div>
             <div className="field"><label htmlFor="ue-email">Correo (también es su usuario de acceso)</label><input id="ue-email" type="email" value={editar.email} onChange={(e) => setEditar({ ...editar, email: e.target.value })} /></div>
+            <div className="field"><span className="label">Foto</span>
+              <div className="persona"><Avatar usuario={editar} tamano={48} />
+                <label className="btn btn-secondary btn-compact btn-icono"><Icono nombre="subir" /> {editar.foto ? editar.foto.name : 'Cambiar foto'}
+                  <input type="file" accept="image/*" className="sr-only" onChange={(e) => setEditar({ ...editar, foto: e.target.files?.[0] ?? null })} /></label></div></div>
             <div className="field"><label htmlFor="ue-cel">Celular (opcional)</label><input id="ue-cel" type="tel" inputMode="tel" placeholder="55 1234 5678" value={editar.celular} onChange={(e) => setEditar({ ...editar, celular: e.target.value })} /></div>
             <Mensaje>{error}</Mensaje>
             <div className="dialog-actions"><button className="btn btn-compact" type="submit">Guardar</button></div>

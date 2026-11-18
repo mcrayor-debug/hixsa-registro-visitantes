@@ -8,6 +8,7 @@ import Visitantes from './config/Visitantes.jsx';
 import Datos from './config/Datos.jsx';
 import Correos from './config/Correos.jsx';
 import Bitacora from './config/Bitacora.jsx';
+import Calendario from './config/Calendario.jsx';
 
 const APARTADOS = [
   ['usuarios', 'Usuarios', 'config_usuarios'],
@@ -17,6 +18,7 @@ const APARTADOS = [
   ['visitantes', 'Visitantes', 'config_visitantes'],
   ['datos', 'Importar y depurar', 'config_visitantes'],
   ['correos', 'Correos y avisos', 'config_correos'],
+  ['calendario', 'Calendario laboral', 'config_correos'],
   ['bitacora', 'Bitácora', 'config_bitacora'],
 ];
 
@@ -38,6 +40,7 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
       {apartado === 'visitantes' && <Visitantes empresas={empresas} />}
       {apartado === 'datos' && <Datos perfil={perfil} />}
       {apartado === 'correos' && <Correos recargar={recargar} perfil={perfil} />}
+      {apartado === 'calendario' && <Calendario />}
       {apartado === 'bitacora' && <Bitacora />}
     </div>
   );

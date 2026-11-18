@@ -1,5 +1,21 @@
 # Historial de versiones
 
+## 4.1.1 (noviembre 2026)
+
+### Nuevo
+- Panel **totalmente responsivo**: en celular, menú hamburguesa con secciones, usuario, *Mi perfil*, *Cambiar contraseña* y *Salir*; las tablas se muestran como tarjetas.
+- **Usuario en sesión** con foto y nombre (menú de usuario); **Mi perfil** para cambiar la propia foto. Los administradores también pueden cambiarla.
+- **Calendario laboral** (Configuración): días festivos editables y carga de los días de descanso obligatorio de la LFT.
+- Visitas **solo en días hábiles**: entrada y salida de lunes a viernes, sin festivos (se permite cruzar un fin de semana). Formulario, servidor y *Nueva invitación*.
+- **Depurar información** (anonimiza, conserva estadísticas): más de 365 días, rango, tipo y completa (SUPERADMIN), filtros por tipo de visitante y motivo, vista previa, respaldo CSV y confirmación. Reemplaza al borrado de perfiles en el panel.
+- **Bitácora**: reenvíos de pase, invitaciones del personal y depuraciones.
+
+### Cambios
+- **Reporte diario**: trae el día hábil anterior (el lunes llega el del viernes; corrige que el viernes no se reportaba); no se envía en festivo.
+- **Reporte semanal** (correo y pestaña Reportes): solo lunes a viernes.
+- Reportes: *Enviar reporte ahora* pasa arriba, con fondo suave.
+- Nueva Edge Function `depurar-informacion`; migración `20261116_v4_1_1.sql`.
+
 ## 4.1.0 (noviembre 2026)
 
 ### Nuevo

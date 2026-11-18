@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.crear-invitacion]
 verify_jwt = false
+
+[functions.depurar-informacion]
+verify_jwt = false

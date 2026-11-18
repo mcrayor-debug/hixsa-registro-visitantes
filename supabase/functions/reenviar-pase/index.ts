@@ -5,7 +5,7 @@
 // =====================================================================
 import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
-import { filtroAuditoria, rangoDelAlcance, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
+import { filtroAuditoria, rangoDelAlcance, registrarCambio, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
 import { enviarPase, invitarCalendario } from "../_shared/pase.ts";
 import { diaCDMX } from "../_shared/estadisticas.js";
 
@@ -52,6 +52,8 @@ Deno.serve(async (req) => {
   if (visita.salida_real_at || new Date(visita.salida).getTime() < Date.now()) return json({ error: "La visita ya concluyó o venció; pide un nuevo registro." }, 409);
 
   const r = await enviarPase(db, visita, { empresaVisita: visita.empresas?.nombre ?? "HIXSA", aprueba: null, reenvio: true });
+  await registrarCambio(db, yo, "visitantes", "reenvio", visita.folio, null,
+    { folio: visita.folio, nombre: visita.nombre_completo, correo: visita.correo, enviado: r.correoEnviado });
   if (!r.correoEnviado) return json({ error: "No se pudo enviar el correo. Revisa la columna de error en la visita o la configuración de Resend." }, 502);
   return json({ ok: true, correo: visita.correo });
 });

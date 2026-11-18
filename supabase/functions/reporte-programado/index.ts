@@ -13,6 +13,7 @@ import { esSuperadmin, filtroAuditoria, usuarioActivo } from "../_shared/auth.ts
 import { enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { base64Texto } from "../_shared/calendario.ts";
 import * as E from "../_shared/estadisticas.js";
+import { cargarFestivos } from "../_shared/habiles.ts";
 
 const CAMPOS = "folio, persona_id, correo, nombre_completo, empresa, persona_visita, motivo, entrada, salida, llegada_at, salida_real_at, " +
   "estado_aprobacion, entrada_fuera_horario, origen, correo_error, empresas(nombre)";
@@ -64,10 +65,16 @@ Deno.serve(async (req) => {
   const tolerancia = cfg?.tolerancia_min ?? 15;
   const solo = await filtroAuditoria(db);
   const hoy = E.hoyCDMX();
-  // Diario: el día indicado (por omisión, ayer) + agenda del día siguiente. Semanal: la semana que contiene la fecha (por omisión, la anterior).
-  const dia = fecha ?? E.sumarDias(hoy, -1);
-  const rango = tipo === "diario" ? { desde: dia, hasta: dia } : fecha ? E.semanaDe(fecha) : E.semanaAnterior();
-  const diaAgenda = E.sumarDias(dia, 1);
+  // Días hábiles: lunes a viernes, sin festivos.
+  // Diario: el día indicado (por omisión, el día hábil anterior: el lunes trae el viernes) + agenda del siguiente día hábil.
+  // Semanal: lunes a viernes de la semana indicada (por omisión, la anterior).
+  const festivos = await cargarFestivos(db);
+  if (porCron && tipo === "diario" && !E.esDiaHabil(hoy, festivos)) {
+    return json({ ok: true, omitido: true, motivo: "Hoy no es día hábil; el reporte saldrá el siguiente día hábil." });
+  }
+  const dia = fecha ?? E.diaHabilAnterior(hoy, festivos);
+  const rango = tipo === "diario" ? { desde: dia, hasta: dia } : fecha ? E.semanaLaboralDe(fecha) : E.semanaLaboralAnterior();
+  const diaAgenda = E.siguienteDiaHabil(dia, festivos);
 
   const consulta = (desde: string, hasta: string) => {
     let q = db.from("visitantes").select(CAMPOS)
@@ -96,7 +103,7 @@ Deno.serve(async (req) => {
     if (errCorreo) alertas.push(`${errCorreo} ${errCorreo === 1 ? "pase no se pudo" : "pases no se pudieron"} enviar por correo.`);
     asunto = `Reporte diario de visitas HIXSA (${rango.desde})`;
     cuerpo = `<p style="margin:0 0 12px">Resumen del <b>${fechaLarga(rango.desde)}</b>: ${r.total} visitas de ${r.empresas} empresas; llegaron ${r.llegaron}${r.puntualidad !== null ? `, con ${r.puntualidad} % de puntualidad` : ""}. El ${fechaLarga(diaAgenda)} hay ${ag.length} visitas programadas.</p>
-      ${kpis([["visitas", r.total], ["llegaron", r.llegaron], ["puntualidad", r.puntualidad === null ? "—" : `${r.puntualidad} %`], [diaAgenda === hoy ? "programadas hoy" : "programadas el día siguiente", ag.length]])}
+      ${kpis([["visitas", r.total], ["llegaron", r.llegaron], ["puntualidad", r.puntualidad === null ? "—" : `${r.puntualidad} %`], [diaAgenda === hoy ? "programadas hoy" : "programadas el siguiente día hábil", ag.length]])}
       ${alertas.length ? `<h3 style="margin:18px 0 6px;font-size:15px;color:#F38A00">Alertas</h3><ul style="margin:0;padding-left:20px">${alertas.map((a) => `<li>${a}</li>`).join("")}</ul>` : ""}
       ${tablaHtml(`Agenda del ${fechaLarga(diaAgenda)} (${ag.length})`, ["Horario", "Visitante", "Empresa", "Visita a", "Aprobación"],
         ag.map((v) => [`${hora(v.entrada)} a ${hora(v.salida)}`, v.nombre_completo, v.empresa, v.persona_visita, v.estado_aprobacion]))}`;
@@ -111,7 +118,7 @@ Deno.serve(async (req) => {
     asunto = `Reporte semanal de visitas HIXSA (${rango.desde} a ${rango.hasta})`;
     cuerpo = `<p style="margin:0 0 12px">Semana del <b>${fechaLarga(rango.desde)}</b> al <b>${fechaLarga(rango.hasta)}</b>: ${r.total} visitas, ${r.unicos} visitantes distintos (${nr.nuevos} nuevos y ${nr.recurrentes} recurrentes).</p>
       ${kpis([["visitas", r.total], ["únicos", r.unicos], ["puntualidad", r.puntualidad === null ? "—" : `${r.puntualidad} %`], ["vencidas sin uso", r.sinUso]])}
-      ${tablaHtml("Visitas por día", ["Día", "Visitas"], E.porDiaLaboral(vs).map((x) => [x.dia, x.visitas]))}
+      ${tablaHtml("Visitas por día (lunes a viernes)", ["Día", "Visitas"], E.porDiaLaboral(vs).map((x) => [x.dia, x.visitas]))}
       ${tablaHtml("Horas pico de acceso", ["Hora", "Llegadas"], E.horasPico(vs).filter((x) => x.llegadas).map((x) => [x.hora, x.llegadas]))}
       ${tablaHtml("Empresas de origen con más visitas", ["Empresa", "Visitas"], E.contar(vs, (v: V) => v.empresa).slice(0, 8))}
       ${tablaHtml("Visitas por anfitrión", ["Anfitrión", "Área", "Visitas"], E.porAnfitrion(vs).slice(0, 10).map((x) => [x.anfitrion, x.area, x.visitas]))}

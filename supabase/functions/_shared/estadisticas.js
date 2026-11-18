@@ -34,12 +34,32 @@ export function mesDe(ym) {
   const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return { desde: `${ym}-01`, hasta: `${ym}-${String(ultimo).padStart(2, '0')}` };
 }
-/** Días de lunes a viernes entre dos fechas (inclusive). */
-export function diasHabiles(desde, hasta) {
+/** Días hábiles (lunes a viernes, sin festivos) entre dos fechas (inclusive). */
+export function diasHabiles(desde, hasta, festivos = new Set()) {
   let n = 0;
-  for (let d = desde; d <= hasta; d = sumarDias(d, 1)) if (dowYmd(d) <= 5) n++;
+  for (let d = desde; d <= hasta; d = sumarDias(d, 1)) if (esDiaHabil(d, festivos)) n++;
   return n;
 }
+
+// ---------- Días hábiles: lunes a viernes, sin festivos ----------
+export const diaSemanaYmd = dowYmd;
+export const esDiaHabil = (ymd, festivos = new Set()) => dowYmd(ymd) <= 5 && !festivos.has(ymd);
+/** Día hábil anterior (el lunes → el viernes; salta festivos). */
+export function diaHabilAnterior(ymd, festivos = new Set()) {
+  let d = sumarDias(ymd, -1);
+  for (let i = 0; i < 30 && !esDiaHabil(d, festivos); i++) d = sumarDias(d, -1);
+  return d;
+}
+/** Siguiente día hábil (el viernes → el lunes; salta festivos). */
+export function siguienteDiaHabil(ymd, festivos = new Set()) {
+  let d = sumarDias(ymd, 1);
+  for (let i = 0; i < 30 && !esDiaHabil(d, festivos); i++) d = sumarDias(d, 1);
+  return d;
+}
+/** Semana laboral (lunes a viernes) que contiene la fecha. */
+export const semanaLaboralDe = (ymd) => { const { desde } = semanaDe(ymd); return { desde, hasta: sumarDias(desde, 4) }; };
+/** Semana laboral anterior completa (lunes a viernes). */
+export const semanaLaboralAnterior = (ahora = Date.now()) => semanaLaboralDe(sumarDias(hoyCDMX(ahora), -7));
 
 export const clavePersona = (v) => v.persona_id || String(v.correo ?? '').toLowerCase();
 export const esImportada = (v) => Boolean(v.origen) && v.origen !== 'formulario';

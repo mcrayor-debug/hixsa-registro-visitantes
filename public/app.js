@@ -139,6 +139,7 @@ async function cargarPublico() {
   // Logo configurado en el panel (si existe) para la bienvenida
   if (publico.logo_url) document.querySelectorAll('[data-logo="color"]').forEach((img) => { img.src = publico.logo_url; });
   pintarBienvenida();
+  if (!esDiaHabil(els.fe.value)) horarioPorDefecto(); // ya con los festivos cargados
   if (!supabase) {
     const box = $('#bienvenida-estado');
     box.textContent = 'El sitio aún no está conectado. Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY.';
@@ -354,11 +355,26 @@ const els = {
   fs: form.elements.fecha_salida, hs: form.elements.hora_salida,
 };
 
+// Días hábiles: lunes a viernes, sin festivos (los festivos llegan en config_publica)
+const MSG_INHABIL = 'Las visitas se agendan de lunes a viernes, sin días festivos. Elige otro día.';
+function esDiaHabil(ymd) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd ?? '')) return true;
+  const dow = new Date(`${ymd}T12:00:00Z`).getUTCDay();
+  return dow >= 1 && dow <= 5 && !(publico.festivos ?? []).includes(ymd);
+}
+function sumarDia(ymd, n = 1) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
 function horarioPorDefecto() {
   const ahora = new Date();
   const inicio = new Date(Math.ceil(ahora.getTime() / (15 * 60e3)) * 15 * 60e3); // siguiente cuarto de hora
   const fin = new Date(inicio.getTime() + 60 * 60e3);
   const a = partesCDMX(inicio), b = partesCDMX(fin);
+  if (!esDiaHabil(a.fecha)) {
+    // Fin de semana o festivo: se propone el siguiente día hábil de 10:00 a 11:00
+    let d = sumarDia(a.fecha);
+    for (let i = 0; i < 30 && !esDiaHabil(d); i++) d = sumarDia(d);
+    a.fecha = d; a.hora = '10:00'; b.fecha = d; b.hora = '11:00';
+  }
   els.fe.value = a.fecha; els.he.value = a.hora;
   els.fs.value = b.fecha; els.hs.value = b.hora;
   els.fe.min = partesCDMX(ahora).fecha;
@@ -416,6 +432,7 @@ const rules = {
     if (!ent) return 'Elige la fecha y la hora de entrada.';
     if (ent.getTime() < Date.now() - 2 * 3600e3) return 'La entrada no puede ser en el pasado.';
     if (ent.getTime() > Date.now() + 90 * 864e5) return 'Solo se aceptan visitas en los próximos 90 días.';
+    if (!esDiaHabil(els.fe.value)) return MSG_INHABIL;
     return '';
   },
   salida: () => {
@@ -424,6 +441,7 @@ const rules = {
     if (!sal) return 'Elige la fecha y la hora de salida.';
     if (ent && sal <= ent) return 'La salida debe ser después de la entrada.';
     if (ent && sal - ent > 7 * 864e5) return 'La visita puede durar máximo 7 días.';
+    if (!esDiaHabil(els.fs.value)) return MSG_INHABIL;
     return '';
   },
   persona_visita: () => {
