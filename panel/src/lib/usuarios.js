@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { comprimir } from './imagen.js';
+import { comprimirBlob } from './imagen.js';
 
 // Fotos de usuarios del panel: bucket privado "usuarios", carpeta = id del usuario.
 const cache = new Map();
@@ -14,8 +14,7 @@ export async function urlFotoUsuario(ruta) {
 
 /** Comprime (512 px, JPEG) y sube la foto; devuelve la ruta guardada. */
 export async function subirFotoUsuario(idUsuario, archivo) {
-  const dataUrl = await comprimir(archivo, 512, 0.85);
-  const blob = await (await fetch(dataUrl)).blob();
+  const blob = await comprimirBlob(archivo, 512, 0.85);
   const ruta = `${idUsuario}/${crypto.randomUUID()}.jpg`;
   const { error } = await supabase.storage.from('usuarios').upload(ruta, blob, { contentType: 'image/jpeg', upsert: false });
   if (error) throw new Error('No se pudo subir la foto.');

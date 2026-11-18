@@ -9,7 +9,13 @@ cd "C:\Users\mario.rivera\Documents\MARIO\HIXSA\APP REG VISITAS CLAUDE\PROYECTO 
 > **¿Ya desplegaste la 4.1.0?** Si no, primero ejecuta su migración (`supabase/migrations/20261113_v4_1_0.sql`) y despliega `crear-invitacion`, `gestionar-visitante` e `importar-datos` (ver `docs/DESPLIEGUE_V4_1_0.md`). El zip de esta versión ya incluye todos sus archivos.
 
 ## 1. Archivos
-Copia el contenido de `v4.1.1-archivos.zip` encima de la carpeta del proyecto, reemplazando archivos.
+Primero trae lo que haya en GitHub, con la carpeta limpia (`git status` sin cambios):
+
+```powershell
+git pull --rebase origin main
+```
+
+Después copia el contenido de `v4.1.1-archivos.zip` encima de la carpeta del proyecto, reemplazando archivos.
 
 ## 2. Base de datos
 Supabase, proyecto **hixsa-visitantes** (la dirección contiene `ziqfcmgufkeydulgtnvl`) → **SQL Editor → New query** → pega `supabase/migrations/20261116_v4_1_1.sql` → **Run**.
@@ -34,7 +40,6 @@ npx supabase functions deploy admin-usuarios --no-verify-jwt --use-api
 Uno por uno:
 
 ```powershell
-git pull --rebase origin main
 npm install
 npm run build
 git add -A
@@ -59,5 +64,6 @@ git push
 ## Notas
 - **Depurar no se puede deshacer.** Usa siempre la vista previa y descarga el respaldo CSV antes.
 - Si un lunes es festivo, ese día no sale el reporte diario; el martes llega el del viernes.
+- Si la foto de un usuario marca error, confirma que ejecutaste la migración (crea el almacenamiento `usuarios`) y que desplegaste `admin-usuarios`.
 - La función `borrar-perfiles` sigue desplegada, pero el panel ya usa *Depurar información*.
 - Pendiente: actualizar manuales y documentación técnica a la 4.1.1 (cuando lo autorices).
