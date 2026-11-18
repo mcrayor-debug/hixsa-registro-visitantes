@@ -22,7 +22,7 @@ export default function Tablero({ empresas = [], auditoria = false }) {
 
   useEffect(() => {
     setFilas(null);
-    consultaVisitas({ ...rangoPeriodo(periodo), empresa_visita_id: empresa || undefined }, 'folio, empresa, persona_visita, motivo, entrada, salida, llegada_at, salida_real_at')
+    consultaVisitas({ ...rangoPeriodo(periodo), empresa_visita_id: empresa || undefined }, 'folio, empresa, persona_visita, motivo, entrada, salida, llegada_at, salida_real_at, cancelada_at, cancelacion_motivo')
       .order('entrada', { ascending: true }).limit(5000)
       .then(({ data, error: e }) => { if (e) setError('No se pudieron cargar los datos.'); setFilas(data ?? []); });
   }, [periodo, empresa]);
@@ -60,6 +60,7 @@ export default function Tablero({ empresas = [], auditoria = false }) {
       porDia,
       porHora,
       porMotivo: contar(filas, (v) => v.motivo).map(([motivo, n]) => ({ motivo, Visitas: n })),
+      cancelaciones: contar(filas.filter((v) => v.cancelada_at), (v) => v.cancelacion_motivo).map(([nombre, valor]) => ({ nombre, valor })),
       anfitriones: contar(filas, (v) => v.persona_visita).slice(0, 6).map(([nombre, n]) => ({ nombre, Visitas: n })),
       empresasTop: contar(filas, (v) => v.empresa).slice(0, 6),
     };
@@ -113,6 +114,7 @@ export default function Tablero({ empresas = [], auditoria = false }) {
               </BarChart>
             </Grafica>
             <Dona titulo="Motivo de la visita" datos={d.porMotivo.map((x) => ({ nombre: x.motivo, valor: x.Visitas }))} />
+            <Dona titulo="Cancelaciones por motivo" datos={d.cancelaciones} />
             <Grafica titulo="Anfitriones con más visitas">
               <BarChart data={d.anfitriones} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />

@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
   const db = clienteServicio();
   const { data: v } = await db.from("visitantes")
-    .select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, estado_aprobacion, empresas(nombre)")
+    .select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, estado_aprobacion, cancelada_at, empresas(nombre)")
     .eq("aprobacion_token_hash", await sha256Hex(token)).maybeSingle();
   if (!v) return json({ error: "Este enlace ya se usó o no es válido." }, 404);
 
@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
     empresa_visita: (v.empresas as { nombre?: string } | null)?.nombre ?? "",
     motivo: v.motivo, entrada: v.entrada, salida: v.salida, estado: v.estado_aprobacion,
   };
+  if (v.cancelada_at) return json({ error: "Esta visita fue cancelada.", visita: { ...resumen, estado: "cancelada" } }, 409);
   if (p?.consultar) return json({ ok: true, visita: resumen });
   if (p?.accion !== "aprobar" && p?.accion !== "rechazar") return json({ error: "Acción inválida." }, 422);
   if (v.estado_aprobacion !== "pendiente") return json({ error: "Esta visita ya fue respondida.", visita: resumen }, 409);

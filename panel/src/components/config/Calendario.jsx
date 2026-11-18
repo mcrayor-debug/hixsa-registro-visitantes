@@ -1,3 +1,4 @@
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase.js';
 import { mensajeError } from '../../lib/archivos.js';
@@ -33,13 +34,27 @@ export default function Calendario() {
   const [lista, setLista] = useState([]);
   const [nuevo, setNuevo] = useState({ fecha: '', nombre: '' });
   const [error, setError] = useState('');
+  const [horario, setHorario] = useState(null);
   const toast = useToast();
+  const pag = usePaginacion(lista, 25);
 
   const cargar = useCallback(async () => {
     const { data } = await supabase.from('dias_festivos').select('fecha, nombre').gte('fecha', `${anio}-01-01`).lte('fecha', `${anio}-12-31`).order('fecha');
     setLista(data ?? []);
   }, [anio]);
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    supabase.from('configuracion').select('hora_apertura, hora_ultima_entrada, hora_cierre').eq('id', 1).maybeSingle()
+      .then(({ data }) => data && setHorario({ apertura: data.hora_apertura.slice(0, 5), ultima: data.hora_ultima_entrada.slice(0, 5), cierre: data.hora_cierre.slice(0, 5), error: '' }));
+  }, []);
+  async function guardarHorario(e) {
+    e.preventDefault();
+    const { apertura, ultima, cierre } = horario;
+    if (!(apertura < ultima && ultima <= cierre)) return setHorario({ ...horario, error: 'La apertura debe ser antes de la última entrada, y esta no puede pasar del cierre.' });
+    const { error: err } = await supabase.from('configuracion').update({ hora_apertura: apertura, hora_ultima_entrada: ultima, hora_cierre: cierre }).eq('id', 1);
+    if (err) return setHorario({ ...horario, error: mensajeError(err) });
+    setHorario({ ...horario, error: '' }); toast('Horario de recepción guardado.');
+  }
 
   async function agregar(e) {
     e.preventDefault();
@@ -64,6 +79,20 @@ export default function Calendario() {
   }
 
   return (
+    <div className="config-col">
+    {horario && (
+      <section className="card" aria-labelledby="hor-titulo">
+        <h2 id="hor-titulo">Horario de recepción</h2>
+        <p className="muted">Se aplica al formulario, a las invitaciones del personal y al servidor. Las visitas pueden durar varios días.</p>
+        <form className="horario-form" onSubmit={guardarHorario} noValidate>
+          <div className="field"><label htmlFor="h-ap">Apertura (entrada más temprana)</label><input id="h-ap" type="time" value={horario.apertura} onChange={(e) => setHorario({ ...horario, apertura: e.target.value })} /></div>
+          <div className="field"><label htmlFor="h-ul">Última hora de entrada</label><input id="h-ul" type="time" value={horario.ultima} onChange={(e) => setHorario({ ...horario, ultima: e.target.value })} /></div>
+          <div className="field"><label htmlFor="h-ci">Cierre (salida más tarde)</label><input id="h-ci" type="time" value={horario.cierre} onChange={(e) => setHorario({ ...horario, cierre: e.target.value })} /></div>
+          <button className="btn btn-compact" type="submit">Guardar horario</button>
+        </form>
+        <Mensaje>{horario.error}</Mensaje>
+      </section>
+    )}
     <section className="card" aria-labelledby="cal-titulo">
       <div className="card-head">
         <div>
@@ -83,16 +112,18 @@ export default function Calendario() {
       <div className="table-wrap">
         <table className="tabla">
           <thead><tr><th>Fecha</th><th>Día festivo</th><th><span className="sr-only">Acciones</span></th></tr></thead>
-          <tbody>{lista.map((f) => (
+          <tbody>{pag.visibles.map((f) => (
             <tr key={f.fecha}><td className="nowrap">{fmt.format(new Date(`${f.fecha}T12:00:00Z`))}</td><td>{f.nombre}</td>
               <td className="acciones-fila"><BotonIcono icono="eliminar" texto="Quitar día festivo" peligro onClick={() => quitar(f)} /></td></tr>
           ))}</tbody>
         </table>
+        {pag.controles}
         {!lista.length && <p className="vacio">Sin días festivos en {anio}.</p>}
       </div>
       <button type="button" className="btn btn-secondary btn-compact btn-icono" onClick={cargarLFT}>
         <Icono nombre="calendario" /> Cargar descanso obligatorio {anio} (Ley Federal del Trabajo)</button>
       <p className="hint">Revisa la lista cada año: la ley puede cambiar y los días que caen en lunes se mueven.</p>
     </section>
+    </div>
   );
 }

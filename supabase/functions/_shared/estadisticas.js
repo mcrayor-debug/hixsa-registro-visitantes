@@ -70,7 +70,7 @@ export const esPuntual = (v, tolerancia) =>
   new Date(v.llegada_at).getTime() <= new Date(v.entrada).getTime() + tolerancia * 60000;
 /** Invitación vencida sin uso: nunca llegó y su horario ya terminó. */
 export const sinUso = (v, ahora = Date.now()) =>
-  !v.llegada_at && v.estado_aprobacion !== 'rechazada' && new Date(v.salida).getTime() < ahora;
+  !v.llegada_at && !v.cancelada_at && v.estado_aprobacion !== 'rechazada' && new Date(v.salida).getTime() < ahora;
 /** Llegó, ya pasó su horario y no tiene salida registrada (no aplica a importadas). */
 export const sinSalida = (v, ahora = Date.now()) =>
   Boolean(v.llegada_at) && !v.salida_real_at && !esImportada(v) && new Date(v.salida).getTime() < ahora;
@@ -109,6 +109,7 @@ export function resumen(visitas, { tolerancia = 15, ahora = Date.now() } = {}) {
     sinUso: visitas.filter((v) => sinUso(v, ahora)).length,
     sinSalida: visitas.filter((v) => sinSalida(v, ahora)).length,
     rechazadas: visitas.filter((v) => v.estado_aprobacion === 'rechazada').length,
+    canceladas: visitas.filter((v) => v.cancelada_at).length,
     duracionPromedio: horas.length ? Number((horas.reduce((a, b) => a + b, 0) / horas.length).toFixed(1)) : null,
   };
 }

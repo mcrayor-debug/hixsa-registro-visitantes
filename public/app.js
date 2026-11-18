@@ -139,7 +139,9 @@ async function cargarPublico() {
   // Logo configurado en el panel (si existe) para la bienvenida
   if (publico.logo_url) document.querySelectorAll('[data-logo="color"]').forEach((img) => { img.src = publico.logo_url; });
   pintarBienvenida();
-  if (!esDiaHabil(els.fe.value)) horarioPorDefecto(); // ya con los festivos cargados
+  const H = horario();
+  $('#horario-hint').textContent = `Hora del centro de México. Recibimos visitas de lunes a viernes, de ${H.apertura} a ${H.cierre}; la última entrada es a las ${H.ultima_entrada}.`;
+  if (!esDiaHabil(els.fe.value) || els.he.value < H.apertura || els.he.value > H.ultima_entrada) horarioPorDefecto(); // ya con festivos y horario
   if (!supabase) {
     const box = $('#bienvenida-estado');
     box.textContent = 'El sitio aún no está conectado. Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY.';
@@ -362,6 +364,9 @@ function esDiaHabil(ymd) {
   const dow = new Date(`${ymd}T12:00:00Z`).getUTCDay();
   return dow >= 1 && dow <= 5 && !(publico.festivos ?? []).includes(ymd);
 }
+// Horario de recepción (configurable en el panel)
+const horario = () => ({ apertura: '09:00', ultima_entrada: '17:45', cierre: '18:00', ...(publico.horario ?? {}) });
+const sumarMin = (hhmm, n) => { const [h, m] = hhmm.split(':').map(Number); const t = Math.min(23 * 60 + 59, h * 60 + m + n); return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 function sumarDia(ymd, n = 1) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 function horarioPorDefecto() {
@@ -375,6 +380,15 @@ function horarioPorDefecto() {
     for (let i = 0; i < 30 && !esDiaHabil(d); i++) d = sumarDia(d);
     a.fecha = d; a.hora = '10:00'; b.fecha = d; b.hora = '11:00';
   }
+  // Dentro del horario de recepción
+  const H = horario();
+  if (a.hora < H.apertura) a.hora = H.apertura;
+  if (a.hora > H.ultima_entrada) {
+    let d = sumarDia(a.fecha);
+    for (let i = 0; i < 30 && !esDiaHabil(d); i++) d = sumarDia(d);
+    a.fecha = d; a.hora = H.apertura;
+  }
+  b.fecha = a.fecha; b.hora = sumarMin(a.hora, 60) > H.cierre ? H.cierre : sumarMin(a.hora, 60);
   els.fe.value = a.fecha; els.he.value = a.hora;
   els.fs.value = b.fecha; els.hs.value = b.hora;
   els.fe.min = partesCDMX(ahora).fecha;
@@ -433,6 +447,8 @@ const rules = {
     if (ent.getTime() < Date.now() - 2 * 3600e3) return 'La entrada no puede ser en el pasado.';
     if (ent.getTime() > Date.now() + 90 * 864e5) return 'Solo se aceptan visitas en los próximos 90 días.';
     if (!esDiaHabil(els.fe.value)) return MSG_INHABIL;
+    const H = horario();
+    if (els.he.value < H.apertura || els.he.value > H.ultima_entrada) return `Recibimos visitas de ${H.apertura} a ${H.cierre}; la última entrada es a las ${H.ultima_entrada}.`;
     return '';
   },
   salida: () => {
@@ -442,6 +458,8 @@ const rules = {
     if (ent && sal <= ent) return 'La salida debe ser después de la entrada.';
     if (ent && sal - ent > 7 * 864e5) return 'La visita puede durar máximo 7 días.';
     if (!esDiaHabil(els.fs.value)) return MSG_INHABIL;
+    const H = horario();
+    if (els.hs.value > H.cierre || els.hs.value < H.apertura) return `La salida debe ser entre las ${H.apertura} y las ${H.cierre}.`;
     return '';
   },
   persona_visita: () => {

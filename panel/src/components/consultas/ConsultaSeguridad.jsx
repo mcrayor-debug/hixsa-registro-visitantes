@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { supabase, consultaVisitas } from '../../lib/supabase.js';
 import { fmtFechaHora, fmtHora, rangoPeriodo } from '../../lib/formato.js';
 import { puedeExportar } from '../../lib/permisos.js';
@@ -55,18 +56,21 @@ export default function ConsultaSeguridad({ perfil }) {
     } catch { toast('No se pudo generar el PDF.'); }
   }
 
-  const Tabla = ({ lista, vacio }) => (
+  function Tabla({ lista, vacio }) {
+    const pag = usePaginacion(lista, 25);
+    return (
     <div className="table-wrap"><table className="tabla">
       <thead><tr><th>Fecha</th><th>Folio</th><th>Visitante</th><th>Motivo</th><th>Resultado</th><th>Usuario</th></tr></thead>
-      <tbody>{lista.slice(0, 100).map((x, i) => (
+      <tbody>{pag.visibles.map((x, i) => (
         <tr key={i}><td className="nowrap">{fmtFechaHora.format(new Date(x.created_at))}</td><td className="mono">{x.folio}</td>
           <td>{x.visitantes?.nombre_completo}<br /><span className="muted small">{x.visitantes?.empresa}</span></td>
           <td>{MOTIVOS[x.motivo] ?? x.motivo}<br /><span className="muted small">{x.detalle}</span></td>
           <td><span className={`pill ${x.resultado === 'autorizado' ? 'ok' : 'error'}`}>{x.resultado === 'autorizado' ? 'Autorizado' : 'Rechazado'}</span>
             {x.autorizacion_motivo && <><br /><span className="muted small">{x.autorizacion_motivo}</span></>}</td>
           <td className="small">{x.usuario_email ?? 'Sistema'}</td></tr>))}</tbody>
-    </table>{!lista.length && <p className="vacio">{vacio}</p>}</div>
-  );
+    </table>{pag.controles}{!lista.length && <p className="vacio">{vacio}</p>}</div>
+    );
+  }
 
   return (
     <div className="seguridad">

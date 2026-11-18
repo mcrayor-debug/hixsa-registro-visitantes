@@ -9,6 +9,7 @@ import Datos from './config/Datos.jsx';
 import Correos from './config/Correos.jsx';
 import Bitacora from './config/Bitacora.jsx';
 import Calendario from './config/Calendario.jsx';
+import Respaldos from './config/Respaldos.jsx';
 
 const APARTADOS = [
   ['usuarios', 'Usuarios', 'config_usuarios'],
@@ -19,6 +20,7 @@ const APARTADOS = [
   ['datos', 'Importar y depurar', 'config_visitantes'],
   ['correos', 'Correos y avisos', 'config_correos'],
   ['calendario', 'Calendario laboral', 'config_correos'],
+  ['respaldos', 'Respaldos', 'config_roles'],
   ['bitacora', 'Bitácora', 'config_bitacora'],
 ];
 
@@ -41,6 +43,7 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
       {apartado === 'datos' && <Datos perfil={perfil} />}
       {apartado === 'correos' && <Correos recargar={recargar} perfil={perfil} />}
       {apartado === 'calendario' && <Calendario />}
+      {apartado === 'respaldos' && <Respaldos />}
       {apartado === 'bitacora' && <Bitacora />}
     </div>
   );

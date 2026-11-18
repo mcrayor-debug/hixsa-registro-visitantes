@@ -13,6 +13,7 @@ import { filtroAuditoria, tienePermiso, usuarioActivo } from "../_shared/auth.ts
 import { enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora, huellaPase } from "../_shared/formato.ts";
 import { evaluarLlegada } from "../_shared/horario.ts";
+import { notificar } from "../_shared/notificaciones.ts";
 
 const FOLIO_RE = /^HX-[0-9A-Z-]{6,20}$/;
 const TEXTOS: Record<string, string> = {
@@ -25,6 +26,7 @@ const TEXTOS: Record<string, string> = {
   pendiente_aprobacion: "Pendiente de aprobación",
   rechazada_anfitrion: "El anfitrión rechazó la visita",
   no_coincide: "El pase no coincide con el registro",
+  cancelada: "La visita fue cancelada",
 };
 
 interface Problema { motivo: string; detalle: string; autorizable: boolean; aprobable?: boolean }
@@ -45,7 +47,7 @@ Deno.serve(async (req) => {
 
   const { data: v } = await db.from("visitantes")
     .select("id, folio, correo, nombre_completo, empresa, motivo, persona_visita, entrada, salida, llegada_at, salida_real_at, " +
-      "anfitrion_id, empresa_visita_id, estado_aprobacion, personas(estado_bloqueo, bloqueo_motivo), anfitriones(nombre, correo), empresas(nombre)")
+      "anfitrion_id, empresa_visita_id, estado_aprobacion, cancelada_at, cancelacion_motivo, cancelacion_detalle, personas(estado_bloqueo, bloqueo_motivo), anfitriones(nombre, correo), empresas(nombre)")
     .eq("folio", folio).maybeSingle();
   const soloEmpresa = await filtroAuditoria(db);
   // deno-lint-ignore no-explicit-any
@@ -68,9 +70,11 @@ Deno.serve(async (req) => {
       folio: visita.folio, nombre_completo: visita.nombre_completo, empresa: visita.empresa,
       empresa_visita: visita.empresas?.nombre ?? "", entrada: visita.entrada, salida: visita.salida,
     };
-    if (evC.permitido || visita.llegada_at) return json({ ok: true, visita: resumen, fuera_de_alcance: true });
-    const pr = { motivo: evC.motivo!, autorizable: false, detalle: evC.detalle! };
+    if ((evC.permitido || visita.llegada_at) && !visita.cancelada_at) return json({ ok: true, visita: resumen, fuera_de_alcance: true });
+    const pr = visita.cancelada_at ? { motivo: "cancelada", autorizable: false, detalle: `Motivo: ${visita.cancelacion_motivo}.` }
+      : { motivo: evC.motivo!, autorizable: false, detalle: evC.detalle! };
     await registrarIntento(pr, "rechazado");
+    await notificar(db, { tipo: "acceso", titulo: `Acceso no permitido: ${TEXTOS[pr.motivo]} · ${visita.nombre_completo}`, folio, empresa_id: visita.empresa_visita_id });
     return json({
       error: "ACCESO NO PERMITIDO", codigo: pr.motivo, motivo: TEXTOS[pr.motivo], visita: resumen,
       problemas: [{ codigo: pr.motivo, motivo: TEXTOS[pr.motivo], detalle: pr.detalle }], autorizable: false, aprobable: false,
@@ -92,6 +96,14 @@ Deno.serve(async (req) => {
   const bloqueo = visita.personas?.estado_bloqueo ?? "ninguno";
 
   // ---------- aprobar (visitas sin anfitrión con correo) ----------
+  if (visita.cancelada_at && accion !== "consultar") {
+    const pr = { motivo: "cancelada", autorizable: false, detalle: `Motivo: ${visita.cancelacion_motivo === "Otro" ? visita.cancelacion_detalle : visita.cancelacion_motivo}.` };
+    await registrarIntento(pr, "rechazado");
+    await notificar(db, { tipo: "acceso", titulo: `Acceso no permitido: visita cancelada · ${visita.nombre_completo}`, folio, empresa_id: visita.empresa_visita_id });
+    return json({ error: "ACCESO NO PERMITIDO", codigo: "cancelada", motivo: TEXTOS.cancelada, problemas: [{ codigo: "cancelada", motivo: TEXTOS.cancelada, detalle: pr.detalle }],
+      autorizable: false, aprobable: false, sugerencia: "La visita fue cancelada. Si el visitante aún debe entrar, pide un nuevo registro." }, 409);
+  }
+
   if (accion === "aprobar") {
     if (visita.estado_aprobacion !== "pendiente") return json({ error: "Esta visita no está pendiente de aprobación." }, 409);
     if (anfConCorreo) return json({ error: "Esta visita la aprueba su anfitrión. Si ya lo confirmaste, usa “Autorizar entrada”." }, 409);
@@ -137,6 +149,9 @@ Deno.serve(async (req) => {
 
   if (problemas.length && !(accion === "autorizar" && !noAutorizables.length)) {
     await Promise.all(problemas.map((x) => registrarIntento(x, "rechazado")));
+    const principalN = problemas.find((x) => !x.autorizable) ?? problemas[0];
+    await notificar(db, { tipo: principalN.motivo === "bloqueado" ? "bloqueado" : "acceso",
+      titulo: `Acceso no permitido: ${TEXTOS[principalN.motivo]} · ${visita.nombre_completo}`, folio, empresa_id: visita.empresa_visita_id });
     const principal = noAutorizables[0] ?? problemas[0];
     const sugerencia = ["fecha_no_asignada", "caducado", "no_coincide"].includes(principal.motivo)
       ? "Sugiere al visitante hacer un nuevo registro con la fecha y el horario correctos."

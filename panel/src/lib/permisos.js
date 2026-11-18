@@ -2,7 +2,7 @@
 // La base de datos aplica las mismas reglas (RLS); aquí solo se decide qué mostrar.
 export const SECCIONES = [
   ['recepcion', 'Recepción'],
-  ['tablero', 'Tablero'],
+  ['tablero', 'Dashboard'],
   ['consultas', 'Consultas'],
   ['reportes', 'Reportes'],
   ['config_usuarios', 'Configuración: usuarios'],

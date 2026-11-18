@@ -594,3 +594,64 @@ body.menu-abierto { overflow: hidden; }
   .tabla tr.fila-click:active { background: var(--hx-cyan-soft); }
 }
 @media (max-width: 640px) { .tabla td.acciones-fila::before { content: none; } }
+
+/* =====================================================================
+   v4.2.0: campana, calendario de recepción, cancelación, horario, respaldos
+   ===================================================================== */
+.campana { position: relative; margin-left: auto; }
+.usuario-menu { margin-left: 0.25rem; }
+.campana-boton { position: relative; display: inline-grid; place-items: center; width: 40px; height: 40px; color: var(--hx-white); background: none; border: 0; border-radius: 999px; cursor: pointer; }
+.campana-boton:hover { background: rgba(255, 255, 255, 0.12); }
+.campana-boton:focus-visible { outline: none; box-shadow: var(--ring); }
+.campana-contador { position: absolute; top: 3px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px; font-size: 0.6875rem; font-weight: 700; line-height: 18px; color: #fff; background: #D93025; border-radius: 999px; }
+.campana-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: min(360px, calc(100vw - 1rem)); max-height: 70vh; overflow-y: auto; background: var(--hx-white); border: 1px solid var(--hx-line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14); color: var(--hx-ink); }
+.campana-cabecera { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid var(--hx-line); }
+.campana-panel ul { margin: 0; padding: 0; list-style: none; }
+.campana-panel li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr); gap: 0.5rem; padding: 0.625rem 1rem; border-bottom: 1px solid var(--hx-line); font-size: 0.875rem; }
+.campana-panel li.nueva { background: var(--hx-cyan-soft); }
+.campana-panel .vacio { display: block; }
+.campana-icono { font-size: 0.875rem; color: var(--hx-navy); }
+.texto-peligro { color: var(--hx-error); }
+
+.recepcion-der { display: grid; gap: 1rem; align-content: start; }
+.calendario-recepcion h2 { margin: 0 !important; }
+.cal-cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.cal-cabecera .icon-btn { font-size: 1.25rem; line-height: 1; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.cal-dow { text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--hx-muted); padding-bottom: 0.25rem; }
+.cal-dia { display: grid; justify-items: center; gap: 0; min-height: 44px; padding: 0.25rem 0; font: inherit; color: var(--hx-ink); background: var(--hx-white); border: 1.5px solid var(--hx-line); border-radius: 8px; cursor: pointer; }
+.cal-num { font-weight: 700; font-size: 0.875rem; }
+.cal-n { font-size: 0.6875rem; min-height: 0.875rem; }
+.cal-dia.finde { background: #EEF1F5; color: var(--hx-muted); border-color: transparent; }
+.cal-dia.pocas { background: #E5F5FC; border-color: #9BD8F0; }
+.cal-dia.normal { background: #B9DBF7; border-color: #5BA7E8; }
+.cal-dia.muchas { background: #FDE3C2; border-color: var(--hx-naranja); }
+.cal-dia.festivo { background: #FBEAE8; color: #A12A1E; border-color: #F2B8B1; }
+.cal-dia.festivo .cal-n { font-size: 0.625rem; }
+.cal-dia.hoy { outline: 2.5px solid var(--hx-navy); outline-offset: 1px; }
+.cal-dia.elegido { box-shadow: inset 0 0 0 2px var(--hx-navy); }
+.cal-dia:focus-visible { outline: none; box-shadow: var(--ring); }
+.cal-leyenda { display: flex; flex-wrap: wrap; gap: 0.25rem 0.875rem; margin: 0.625rem 0; font-size: 0.75rem; color: var(--hx-muted); }
+.cal-leyenda span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.cal-muestra { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid transparent; }
+.cal-muestra.pocas { background: #E5F5FC; border-color: #9BD8F0; }
+.cal-muestra.normal { background: #B9DBF7; border-color: #5BA7E8; }
+.cal-muestra.muchas { background: #FDE3C2; border-color: var(--hx-naranja); }
+.cal-muestra.festivo { background: #FBEAE8; border-color: #F2B8B1; }
+.cal-dia-lista { border-top: 1px solid var(--hx-line); padding-top: 0.5rem; }
+.cal-dia-titulo { margin: 0 0 0.375rem; font-size: 0.875rem; }
+.cal-dia-lista ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.cal-visita { width: 100%; padding: 0.375rem 0.5rem; text-align: left; font: inherit; font-size: 0.875rem; color: var(--hx-ink); background: none; border: 0; border-radius: 6px; cursor: pointer; }
+.cal-visita:hover { background: var(--hx-cyan-soft); }
+.cal-google { margin-top: 0.75rem; text-decoration: none; justify-content: center; width: 100%; }
+
+.btn-cancelar { color: var(--hx-error); border-color: #F2B8B1; }
+.horario-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 0.75rem; align-items: end; }
+.horario-form .btn { width: auto; }
+.opciones-respaldo { display: grid; gap: 0.25rem; margin-bottom: 1rem; }
+.importar-respaldo { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin: 0.75rem 0; }
+@media (max-width: 860px) {
+  .campana { margin-left: auto; }
+  .avatar-movil { margin-left: 0; }
+}
+@media (max-width: 640px) { .horario-form { grid-template-columns: 1fr; } }

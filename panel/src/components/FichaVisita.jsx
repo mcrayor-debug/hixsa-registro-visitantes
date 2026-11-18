@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { supabase, invocar, CAMPOS_VISITA } from '../lib/supabase.js';
-import { estadoVisita, fmtFechaHora, fmtHora, fmtLarga, huella } from '../lib/formato.js';
-import { Estado, Mensaje, useToast } from './ui.jsx';
+import { estadoVisita, fmtFechaHora, fmtHora, fmtLarga, huella, MOTIVOS_CANCELACION } from '../lib/formato.js';
+import { Dialogo, Estado, Mensaje, useToast } from './ui.jsx';
 
 const BLOQUEOS = {
   no_deseado: ['aviso', 'Visitante NO DESEADO'],
@@ -31,6 +31,7 @@ export default function FichaVisita({ folio, h, onCambio }) {
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [fuera, setFuera] = useState(null);
+  const [cancelar, setCancelar] = useState(null);
   const [errorMotivo, setErrorMotivo] = useState('');
   const toast = useToast();
 
@@ -125,6 +126,12 @@ export default function FichaVisita({ folio, h, onCambio }) {
 
   return (
     <div className="card ficha" data-resultado={resultado}>
+      {v.cancelada_at && (
+        <div className="alerta-bloqueo alerta-bloqueado" role="status">
+          <strong>Visita cancelada</strong>
+          <span>{v.cancelacion_motivo === 'Otro' ? v.cancelacion_detalle : v.cancelacion_motivo}{v.cancelacion_motivo !== 'Otro' && v.cancelacion_detalle ? `: ${v.cancelacion_detalle}` : ''} · por {v.cancelada_por === 'personal' ? 'Recepción' : v.cancelada_por}</span>
+        </div>
+      )}
       {bloqueo && (
         <div className={`alerta-bloqueo alerta-${bloqueo[0]}`} role="alert">
           <strong>{bloqueo[1]}</strong>{v.personas?.bloqueo_motivo && <span>Motivo: {v.personas.bloqueo_motivo}</span>}
@@ -213,7 +220,34 @@ export default function FichaVisita({ folio, h, onCambio }) {
             catch (e) { setError(e.message); } finally { setOcupado(false); }
           }}>Reenviar QR</button>
         )}
+        {!v.cancelada_at && !v.llegada_at && v.estado_aprobacion !== 'rechazada' && new Date(v.salida).getTime() > Date.now() && (
+          <button className="btn btn-secondary btn-cancelar" type="button" disabled={ocupado} onClick={() => setCancelar({ motivo: '', detalle: '', error: '' })}>Cancelar visita</button>
+        )}
       </div>
+      <Dialogo abierto={Boolean(cancelar)} onCerrar={() => setCancelar(null)} titulo="Cancelar visita">
+        {cancelar && <>
+          <p className="muted">{v.folio} · {v.nombre_completo}</p>
+          <div className="field"><label htmlFor="cv-motivo">Motivo</label>
+            <select id="cv-motivo" value={cancelar.motivo} onChange={(e) => setCancelar({ ...cancelar, motivo: e.target.value, error: '' })}>
+              <option value="">Elige el motivo</option>{MOTIVOS_CANCELACION.map((m) => <option key={m} value={m}>{m === 'Otro' ? 'Otro (especificar)' : m}</option>)}
+            </select></div>
+          <div className="field"><label htmlFor="cv-detalle">{cancelar.motivo === 'Otro' ? 'Especifica el motivo' : 'Detalle (opcional)'}</label>
+            <input id="cv-detalle" type="text" maxLength={300} value={cancelar.detalle} onChange={(e) => setCancelar({ ...cancelar, detalle: e.target.value, error: '' })} /></div>
+          <p className="hint">Se avisa al visitante y al anfitrión por correo, y se quita de los calendarios.</p>
+          <Mensaje>{cancelar.error}</Mensaje>
+          <div className="dialog-actions">
+            <button type="button" className="btn btn-secondary btn-compact" onClick={() => setCancelar(null)}>Volver</button>
+            <button type="button" className="btn btn-peligro btn-compact" disabled={ocupado} aria-busy={ocupado} onClick={async () => {
+              if (!cancelar.motivo) return setCancelar({ ...cancelar, error: 'Elige el motivo.' });
+              if (cancelar.motivo === 'Otro' && cancelar.detalle.trim().length < 3) return setCancelar({ ...cancelar, error: 'Especifica el motivo.' });
+              setOcupado(true);
+              try { await invocar('cancelar-visita', { folio, motivo: cancelar.motivo, detalle: cancelar.detalle.trim() || null }); setCancelar(null); toast('Visita cancelada. Se avisó al visitante y al anfitrión.'); await cargar(); onCambio?.(); }
+              catch (e) { setCancelar({ ...cancelar, error: e.message }); } finally { setOcupado(false); }
+            }}>{ocupado ? 'Cancelando…' : 'Cancelar visita'}</button>
+          </div>
+        </>}
+      </Dialogo>
+
 
       {intentos.length > 0 && (
         <details className="intentos">

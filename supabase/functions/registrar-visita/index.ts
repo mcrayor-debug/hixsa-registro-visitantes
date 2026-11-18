@@ -10,8 +10,9 @@ import { json, leerJson, prepararPeticion } from "../_shared/http.ts";
 import { clienteServicio } from "../_shared/supabase.ts";
 import { botonCorreo, EMAIL_RE, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
-import { enviarPase } from "../_shared/pase.ts";
-import { cargarFestivos, validarDiasHabiles } from "../_shared/habiles.ts";
+import { enlaceCancelacionAnfitrion, enviarPase } from "../_shared/pase.ts";
+import { cargarFestivos, cargarHorario, validarDiasHabiles, validarHorario } from "../_shared/habiles.ts";
+import { notificar } from "../_shared/notificaciones.ts";
 import { filtroAuditoria } from "../_shared/auth.ts";
 import { sha256Hex, tokenAleatorio, TOKEN_RE } from "../_shared/tokens.ts";
 
@@ -125,13 +126,18 @@ Deno.serve(async (req) => {
   // Entrada y salida en día hábil (lunes a viernes, sin festivos)
   const inhabil = validarDiasHabiles(datos.entrada!, datos.salida!, await cargarFestivos(db));
   if (inhabil.entrada || inhabil.salida) return json({ error: "Revisa los datos marcados.", campos: inhabil }, 422);
+  const fueraHorario = validarHorario(datos.entrada!, datos.salida!, await cargarHorario(db));
+  if (fueraHorario.entrada || fueraHorario.salida) return json({ error: "Revisa los datos marcados.", campos: fueraHorario }, 422);
   const { count } = await db.from("visitantes").select("id", { count: "exact", head: true })
     .eq("correo", datos.correo).gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
   if ((count ?? 0) >= 5) return json({ error: "Demasiados registros seguidos. Espera unos minutos." }, 429);
 
   // Perfil del visitante y bloqueos
   const { data: persona } = await db.from("personas").select("*").eq("correo", datos.correo).maybeSingle();
-  if (persona?.estado_bloqueo === "bloqueado") return json({ error: MENSAJE_BLOQUEO }, 403);
+  if (persona?.estado_bloqueo === "bloqueado") {
+    await notificar(db, { tipo: "bloqueado", titulo: `Visitante bloqueado intentó registrarse: ${persona.nombre ?? ""} ${persona.apellidos ?? ""}`.trim(), detalle: datos.correo });
+    return json({ error: MENSAJE_BLOQUEO }, 403);
+  }
 
   // Token de visitante recurrente verificado (permite reutilizar sus fotos guardadas)
   let tokenId: number | null = null;
@@ -237,7 +243,13 @@ Deno.serve(async (req) => {
     ${fila("Empresa a visitar", empresa.nombre)}${fila("Motivo", visita.motivo)}${fila("Empresa de origen", visita.empresa)}
   </table>`;
 
+  await notificar(db, {
+    tipo: "pendiente", titulo: `Visita pendiente de aprobación: ${visita.nombre_completo}`, folio: visita.folio, empresa_id: empresa.id,
+    detalle: `${empresa.nombre} · ${apruebaAnfitrion ? `la aprueba ${anfitrion!.nombre}` : "la valida Recepción"}`,
+  });
+
   // Solicitud de aprobación al anfitrión
+  const enlaceCancelarAnf = anfitrion?.correo ? await enlaceCancelacionAnfitrion(db, visita.id) : "";
   if (apruebaAnfitrion && tokenAprobacion) {
     const enlace = (a: string) => `${sitio}/aprobar.html?t=${tokenAprobacion}&a=${a}`;
     const restringido = persona?.estado_bloqueo === "restringido";
@@ -252,7 +264,8 @@ Deno.serve(async (req) => {
             ${tablaVisita}
             <p style="margin:18px 0 8px">¿Confirmas la visita?</p>
             <p style="margin:0">${botonCorreo(enlace("aprobar"), "Aprobar visita")}${botonCorreo(enlace("rechazar"), "Rechazar", "#C0392B")}</p>
-            <p style="margin:16px 0 0;font-size:13px;color:#5B6B7F">Sin tu aprobación, Recepción no registrará la entrada. El enlace es personal y de un solo uso.</p>`,
+            <p style="margin:16px 0 0;font-size:13px;color:#5B6B7F">Sin tu aprobación, Recepción no registrará la entrada. El enlace es personal y de un solo uso.</p>
+            ${enlaceCancelarAnf ? `<p style="margin:10px 0 0;font-size:13px"><a href="${escapar(enlaceCancelarAnf)}" style="color:#C0392B">Cancelar la visita</a> <span style="color:#5B6B7F">(si ya se aprobó y ya no se realizará)</span></p>` : ""}`,
         }),
       });
     } catch (e) {

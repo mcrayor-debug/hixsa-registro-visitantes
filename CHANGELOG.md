@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 4.2.0 (noviembre 2026)
+
+### Nuevo
+- **Horario de recepción** editable (apertura 09:00, última entrada 17:45, cierre 18:00): formulario, invitaciones del personal y servidor. Las visitas pueden durar varios días.
+- **Campana de notificaciones** en el panel (se actualiza cada minuto): pendientes de aprobación, cancelaciones, accesos no permitidos y bloqueados que intentan entrar; ADMIN y SUPERADMIN también reciben reportes no enviados, respaldos fallidos y cambios de bloqueo.
+- **Cancelar visita** desde la ficha (Recepción, SUPERVISOR, ADMIN, SUPERADMIN) y desde el correo del visitante y del anfitrión (enlaces de un solo uso), con motivo obligatorio. Avisa por correo, cancela en los calendarios y se refleja en Dashboard, Reportes y reporte por correo.
+- **Calendario de Recepción**: mes con colores por cantidad de visitas, hoy, festivos y fines de semana; lista del día y botón para abrir Google Calendar.
+- **Respaldos** (Configuración, solo SUPERADMIN): manual con contraseña y fotos opcionales; automáticos semanal (8) y mensual (12) en Supabase, desactivables; importación en modo seguro (solo agrega lo que falte) con vista previa.
+- **Paginación** en todas las listas y registros.
+
+### Cambios
+- *Tablero* ahora se llama **Dashboard**.
+- Las visitas canceladas no cuentan como "vencidas sin uso" ni pueden registrar entrada.
+- Nuevas Edge Functions `cancelar-visita` y `respaldos`; página `cancelar.html`; migración `20261118_v4_2_0.sql`; script `programar-respaldos.sql`.
+
 ## 4.1.1 (noviembre 2026)
 
 ### Nuevo

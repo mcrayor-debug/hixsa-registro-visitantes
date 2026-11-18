@@ -1,3 +1,4 @@
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase.js';
 import { EMAIL_RE } from '../../lib/formato.js';
@@ -15,6 +16,7 @@ export default function Anfitriones({ empresas }) {
   const [error, setError] = useState('');
   const [soloNombre, setSoloNombre] = useState(false);
   const toast = useToast();
+  const pag = usePaginacion(lista, 25);
   const nombreEmpresa = Object.fromEntries(empresas.map((e) => [e.id, e.nombre]));
 
   const cargar = useCallback(async () => {
@@ -108,7 +110,7 @@ export default function Anfitriones({ empresas }) {
         <table className="tabla">
           <thead><tr><th>Anfitrión</th><th>Contacto</th><th>Empresas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>
-            {lista.map((a) => (
+            {pag.visibles.map((a) => (
               <tr key={a.id}>
                 <td><div className="persona">
                   {a.foto_path && fotos[a.foto_path] ? <img className="avatar" src={fotos[a.foto_path]} alt="" /> : <span className="avatar avatar-vacio" aria-hidden="true">{a.nombre.charAt(0)}</span>}
@@ -126,6 +128,7 @@ export default function Anfitriones({ empresas }) {
             ))}
           </tbody>
         </table>
+        {pag.controles}
         {!lista.length && <p className="vacio">Aún no hay anfitriones.</p>}
       </div>
 

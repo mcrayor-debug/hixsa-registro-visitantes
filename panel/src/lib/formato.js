@@ -20,6 +20,7 @@ export const MOTIVOS = ['Reunión', 'Entrevista', 'Proveedor o servicio', 'Entre
 /** Estado real de la visita según llegada y salida registradas en recepción. */
 export function estadoVisita(v, ahora = Date.now()) {
   if (v.salida_real_at) return { texto: 'Concluida', clave: 'concluida' };
+  if (v.cancelada_at) return { texto: 'Cancelada', clave: 'cancelada' };
   if (v.llegada_at && v.origen && v.origen !== 'formulario') return { texto: 'Concluida (importada)', clave: 'concluida' };
   if (v.llegada_at) return { texto: v.entrada_fuera_horario ? 'En sitio (autorizada)' : 'En sitio', clave: 'sitio' };
   if (v.estado_aprobacion === 'rechazada') return { texto: 'Rechazada', clave: 'rechazada' };
@@ -74,7 +75,7 @@ const COLS_CSV = [['folio', 'Folio'], ['nombre', 'Nombre'], ['apellidos', 'Apell
   ['tipo_identificacion', 'Identificación'], ['estado_aprobacion', 'Aprobación'], ['sala_juntas', 'Salas de juntas'],
   ['equipo_tipo', 'Equipo'], ['equipo_marca', 'Marca del equipo'], ['equipo_serie', 'Serie del equipo'],
   ['entrada_fuera_horario', 'Entrada autorizada fuera de horario'], ['autorizacion_motivo', 'Motivo de autorización'],
-  ['comentarios', 'Comentarios']];
+  ['cancelacion_motivo', 'Motivo de cancelación'], ['comentarios', 'Comentarios']];
 const FECHAS = new Set(['entrada', 'salida', 'llegada_at', 'salida_real_at']);
 
 export function descargarCsv(filas, nombre) {
@@ -93,3 +94,5 @@ export function descargarCsv(filas, nombre) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+export const MOTIVOS_CANCELACION = ['Cambio de agenda', 'El anfitrión no está disponible', 'Ya no es necesaria', 'Error en el registro', 'Otro'];

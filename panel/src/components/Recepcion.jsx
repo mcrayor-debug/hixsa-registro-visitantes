@@ -3,6 +3,7 @@ import { consultaVisitas } from '../lib/supabase.js';
 import { estadoVisita, fmtHora, hoyCDMX, parsearQR } from '../lib/formato.js';
 import Escaner from './Escaner.jsx';
 import FichaVisita from './FichaVisita.jsx';
+import CalendarioRecepcion from './CalendarioRecepcion.jsx';
 import { Estado, Mensaje } from './ui.jsx';
 
 export default function Recepcion({ paseInicial }) {
@@ -14,7 +15,7 @@ export default function Recepcion({ paseInicial }) {
 
   const cargarHoy = useCallback(async () => {
     const { data } = await consultaVisitas({ desde: hoyCDMX(), hasta: hoyCDMX() },
-      'folio, nombre_completo, empresa, persona_visita, entrada, salida, llegada_at, salida_real_at, estado_aprobacion, entrada_fuera_horario, personas(estado_bloqueo)')
+      'folio, nombre_completo, empresa, persona_visita, entrada, salida, llegada_at, salida_real_at, estado_aprobacion, entrada_fuera_horario, cancelada_at, personas(estado_bloqueo)')
       .order('entrada', { ascending: true }).limit(300);
     setHoy(data ?? []);
   }, []);
@@ -62,6 +63,8 @@ export default function Recepcion({ paseInicial }) {
         {sel && <FichaVisita key={`${sel.folio}-${sel.h}`} folio={sel.folio} h={sel.h} onCambio={cargarHoy} />}
       </div>
 
+      <div className="recepcion-der">
+      <CalendarioRecepcion onElegir={(f) => setSel({ folio: f, h: null })} />
       <section className="card recepcion-hoy" aria-labelledby="hoy-titulo">
         <div className="hoy-head">
           <h2 id="hoy-titulo">Visitas de hoy</h2>
@@ -80,6 +83,7 @@ export default function Recepcion({ paseInicial }) {
           ))}
         </ul>
       </section>
+      </div>
     </div>
   );
 }

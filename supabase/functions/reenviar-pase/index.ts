@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     if (!tienePermiso(yo, "config_correos")) return json({ error: "Tu rol no puede sincronizar el calendario." }, 403);
     const solo = await filtroAuditoria(db);
     let q = db.from("visitantes").select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, empresas(nombre)")
-      .gt("salida", new Date().toISOString()).neq("estado_aprobacion", "rechazada").is("salida_real_at", null).order("entrada").limit(40);
+      .gt("salida", new Date().toISOString()).neq("estado_aprobacion", "rechazada").is("salida_real_at", null).is("cancelada_at", null).order("entrada").limit(40);
     if (solo) q = q.eq("empresa_visita_id", solo);
     const { data } = await q;
     let enviadas = 0;
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
   const folio = String(p?.folio ?? "").trim().toUpperCase();
   const { data: v } = await db.from("visitantes")
-    .select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, salida_real_at, estado_aprobacion, empresa_visita_id, empresas(nombre)")
+    .select("id, folio, nombre, nombre_completo, correo, empresa, persona_visita, motivo, entrada, salida, salida_real_at, estado_aprobacion, cancelada_at, empresa_visita_id, empresas(nombre)")
     .eq("folio", folio).maybeSingle();
   const solo = await filtroAuditoria(db);
   const rango = rangoDelAlcance(yo);
@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
       (rango && (diaCDMX(visita.entrada) < rango.desde || diaCDMX(visita.entrada) > rango.hasta))) {
     return json({ error: `No existe una visita con el folio ${folio} en tu alcance.` }, 404);
   }
+  if (visita.cancelada_at) return json({ error: "La visita fue cancelada; no se reenvía el pase." }, 409);
   if (visita.estado_aprobacion === "rechazada") return json({ error: "La visita fue rechazada por el anfitrión; no se reenvía el pase." }, 409);
   if (visita.salida_real_at || new Date(visita.salida).getTime() < Date.now()) return json({ error: "La visita ya concluyó o venció; pide un nuevo registro." }, 409);
 

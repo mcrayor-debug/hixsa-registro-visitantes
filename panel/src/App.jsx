@@ -10,11 +10,12 @@ const Reportes = lazy(() => import('./components/Reportes.jsx'));
 const Configuracion = lazy(() => import('./components/Configuracion.jsx'));
 import { Dialogo, Mensaje, useToast } from './components/ui.jsx';
 import Avatar from './components/Avatar.jsx';
+import Campana from './components/Campana.jsx';
 import { quitarFotoUsuario, subirFotoUsuario } from './lib/usuarios.js';
 
 const PESTANAS = [
   { id: 'recepcion', texto: 'Recepción', permitido: (p) => puede(p, 'recepcion') },
-  { id: 'tablero', texto: 'Tablero', permitido: (p) => puede(p, 'tablero') },
+  { id: 'tablero', texto: 'Dashboard', permitido: (p) => puede(p, 'tablero') },
   { id: 'consultas', texto: 'Consultas', permitido: (p) => puede(p, 'consultas') },
   { id: 'reportes', texto: 'Reportes', permitido: (p) => puede(p, 'reportes') },
   { id: 'configuracion', texto: 'Configuración', permitido: puedeConfigurar },
@@ -63,7 +64,7 @@ export default function App() {
 
   async function entrar(user) {
     const { data: p } = await supabase.from('perfiles')
-      .select('id, email, nombre, rol, activo, celular, foto_path, roles(id, nombre, secciones, alcance, puede_exportar)')
+      .select('id, email, nombre, rol, activo, celular, foto_path, notificaciones_leidas_at, roles(id, nombre, secciones, alcance, puede_exportar)')
       .eq('id', user.id).maybeSingle();
     if (!p || !p.activo) {
       await supabase.auth.signOut();
@@ -132,6 +133,7 @@ export default function App() {
                   onClick={() => setTab(t.id)}>{t.texto}</button>
               ))}
             </nav>
+            <Campana perfil={perfil} onLeidas={(t) => setPerfil({ ...perfil, notificaciones_leidas_at: t })} />
             <div className="usuario-menu">
               <button type="button" className="usuario-boton" aria-haspopup="menu" aria-expanded={menuUsuario} onClick={() => setMenuUsuario(!menuUsuario)}>
                 <span className="usuario-textos"><span className="usuario-nombre">{perfil.nombre}</span><span className="usuario-rol">{perfil.roles?.nombre ?? perfil.rol}</span></span>

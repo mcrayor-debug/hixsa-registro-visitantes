@@ -18,6 +18,7 @@ export default function ConsultaVisitante({ perfil, empresas = [] }) {
   const [ficha, setFicha] = useState(null);
   const [enviando, setEnviando] = useState('');
   const toast = useToast();
+  const pag = usePaginacion(visitas, 25);
 
   useEffect(() => {
     const t = texto.replace(/[,()*%\\]/g, ' ').trim();
@@ -82,7 +83,7 @@ export default function ConsultaVisitante({ perfil, empresas = [] }) {
             <table className="tabla">
               <thead><tr><th>Folio</th><th>Entrada</th><th>Visita a</th><th>Llegada</th><th>Salida</th><th>Estado</th></tr></thead>
               <tbody>
-                {visitas.map((v) => (
+                {pag.visibles.map((v) => (
                   <tr key={v.folio} className="fila-click" tabIndex={0} onClick={() => setFicha(v.folio)} onKeyDown={(e) => e.key === 'Enter' && setFicha(v.folio)}>
                     <td className="mono">{v.folio}</td><td className="nowrap">{fmtFechaHora.format(new Date(v.entrada))}</td>
                     <td>{v.persona_visita}<br /><span className="muted small">{v.empresas?.nombre}</span></td>
@@ -93,6 +94,7 @@ export default function ConsultaVisitante({ perfil, empresas = [] }) {
                 ))}
               </tbody>
             </table>
+        {pag.controles}
             {!visitas.length && <p className="vacio">No hay visitas en tu alcance.</p>}
           </div>
         </section>

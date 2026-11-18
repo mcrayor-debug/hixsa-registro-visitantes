@@ -10,9 +10,9 @@ import { clienteServicio } from "../_shared/supabase.ts";
 import { filtroAuditoria, registrarCambio, tienePermiso, usuarioActivo } from "../_shared/auth.ts";
 import { botonCorreo, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
-import { enviarPase } from "../_shared/pase.ts";
+import { enlaceCancelacionAnfitrion, enviarPase } from "../_shared/pase.ts";
 import { sha256Hex, tokenAleatorio } from "../_shared/tokens.ts";
-import { cargarFestivos, validarDiasHabiles } from "../_shared/habiles.ts";
+import { cargarFestivos, cargarHorario, validarDiasHabiles, validarHorario } from "../_shared/habiles.ts";
 
 const MOTIVOS = ["Reunión", "Entrevista", "Proveedor o servicio", "Entrega o paquetería", "Otro"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,6 +43,8 @@ Deno.serve(async (req) => {
   if (salida <= entrada || salida.getTime() - entrada.getTime() > 7 * 24 * HORA) return json({ error: "La salida debe ser después de la entrada (máximo 7 días)." }, 422);
   const inhabil = validarDiasHabiles(entrada.toISOString(), salida.toISOString(), await cargarFestivos(db));
   if (inhabil.entrada || inhabil.salida) return json({ error: inhabil.entrada ?? inhabil.salida }, 422);
+  const fueraHorario = validarHorario(entrada.toISOString(), salida.toISOString(), await cargarHorario(db));
+  if (fueraHorario.entrada || fueraHorario.salida) return json({ error: fueraHorario.entrada ?? fueraHorario.salida }, 422);
 
   const { data: empresa } = await db.from("empresas").select("id, nombre, activa").eq("id", empresaId).maybeSingle();
   const solo = await filtroAuditoria(db);
@@ -93,6 +95,7 @@ Deno.serve(async (req) => {
 
   // Aviso al anfitrión (o solicitud de aprobación si el visitante está restringido)
   if (anfitrion?.correo) {
+    const enlaceCancelarAnf = await enlaceCancelacionAnfitrion(db, visita.id);
     const cuando = `${formatoFecha(visita.entrada)}, ${formatoHora(visita.entrada)} a ${formatoHora(visita.salida)} h`;
     try {
       await enviarCorreo({
@@ -105,7 +108,8 @@ Deno.serve(async (req) => {
             ${pideAnfitrion
               ? `<p style="margin:0 0 12px;padding:10px 12px;background:#FBEAE8;border-radius:8px"><b>Visitante con acceso restringido.</b> Solo podrá entrar si apruebas la visita.</p>
                  <p style="margin:0">${botonCorreo(`${sitio}/aprobar.html?t=${token}&a=aprobar`, "Aprobar visita")}${botonCorreo(`${sitio}/aprobar.html?t=${token}&a=rechazar`, "Rechazar", "#C0392B")}</p>`
-              : `<p style="margin:0;color:#5B6B7F">La visita ya está aprobada; no necesitas hacer nada.</p>`}`,
+              : `<p style="margin:0;color:#5B6B7F">La visita ya está aprobada; no necesitas hacer nada.</p>`}
+            ${enlaceCancelarAnf ? `<p style="margin:10px 0 0;font-size:13px"><a href="${escapar(enlaceCancelarAnf)}" style="color:#C0392B">Cancelar la visita</a></p>` : ""}`,
         }),
       });
     } catch (e) {

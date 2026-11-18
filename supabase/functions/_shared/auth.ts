@@ -60,7 +60,7 @@ export async function filtroAuditoria(admin: SupabaseClient): Promise<string | n
 
 /** Registra en la bitácora un cambio hecho por una Edge Function, con su autor. */
 export async function registrarCambio(
-  admin: SupabaseClient, autor: Perfil, tabla: string, accion: "alta" | "edicion" | "baja" | "reenvio" | "invitacion" | "depuracion",
+  admin: SupabaseClient, autor: Perfil, tabla: string, accion: "alta" | "edicion" | "baja" | "reenvio" | "invitacion" | "depuracion" | "cancelacion" | "respaldo" | "restauracion",
   registroId: string, antes: unknown, despues: unknown,
 ) {
   await admin.from("bitacora_cambios").insert({

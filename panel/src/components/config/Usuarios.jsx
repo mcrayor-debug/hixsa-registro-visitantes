@@ -1,3 +1,4 @@
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, invocar } from '../../lib/supabase.js';
 import { EMAIL_RE } from '../../lib/formato.js';
@@ -15,6 +16,7 @@ export default function Usuarios({ perfil }) {
   const [cred, setCred] = useState(null);
   const [editar, setEditar] = useState(null);
   const toast = useToast();
+  const pag = usePaginacion(usuarios, 25);
   const soySuper = esSuperadmin(perfil);
 
   const cargar = useCallback(async () => {
@@ -63,7 +65,7 @@ export default function Usuarios({ perfil }) {
         <table className="tabla">
           <thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>
-            {usuarios.map((u) => {
+            {pag.visibles.map((u) => {
               const yo = u.id === perfil.id;
               const protegido = u.rol === 'superadmin' && !soySuper;
               return (
@@ -92,6 +94,7 @@ export default function Usuarios({ perfil }) {
             })}
           </tbody>
         </table>
+        {pag.controles}
       </div>
 
       <Dialogo abierto={Boolean(nuevo)} onCerrar={() => setNuevo(null)} titulo="Agregar usuario">

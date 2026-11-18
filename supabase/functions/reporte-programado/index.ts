@@ -14,9 +14,10 @@ import { enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.
 import { base64Texto } from "../_shared/calendario.ts";
 import * as E from "../_shared/estadisticas.js";
 import { cargarFestivos } from "../_shared/habiles.ts";
+import { notificar } from "../_shared/notificaciones.ts";
 
 const CAMPOS = "folio, persona_id, correo, nombre_completo, empresa, persona_visita, motivo, entrada, salida, llegada_at, salida_real_at, " +
-  "estado_aprobacion, entrada_fuera_horario, origen, correo_error, empresas(nombre)";
+  "estado_aprobacion, entrada_fuera_horario, origen, correo_error, cancelada_at, cancelacion_motivo, empresas(nombre)";
 const fechaLarga = (ymd: string) => new Intl.DateTimeFormat("es-MX", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(`${ymd}T12:00:00Z`));
 const hora = (iso: string) => new Intl.DateTimeFormat("es-MX", { timeZone: E.TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
@@ -98,6 +99,7 @@ Deno.serve(async (req) => {
     if (r.sinUso) alertas.push(`${r.sinUso} ${r.sinUso === 1 ? "invitación venció" : "invitaciones vencieron"} sin uso.`);
     if (r.sinSalida) alertas.push(`${r.sinSalida} ${r.sinSalida === 1 ? "visita no tiene" : "visitas no tienen"} salida registrada.`);
     if (r.autorizadas) alertas.push(`${r.autorizadas} ${r.autorizadas === 1 ? "entrada fue autorizada" : "entradas fueron autorizadas"} fuera de horario.`);
+    if (r.canceladas) alertas.push(`${r.canceladas} ${r.canceladas === 1 ? "visita fue cancelada" : "visitas fueron canceladas"}.`);
     if (rechazos) alertas.push(`${rechazos} ${rechazos === 1 ? "intento de acceso fue rechazado" : "intentos de acceso fueron rechazados"}.`);
     const errCorreo = vs.filter((v) => v.correo_error).length;
     if (errCorreo) alertas.push(`${errCorreo} ${errCorreo === 1 ? "pase no se pudo" : "pases no se pudieron"} enviar por correo.`);
@@ -122,6 +124,7 @@ Deno.serve(async (req) => {
       ${tablaHtml("Horas pico de acceso", ["Hora", "Llegadas"], E.horasPico(vs).filter((x) => x.llegadas).map((x) => [x.hora, x.llegadas]))}
       ${tablaHtml("Empresas de origen con más visitas", ["Empresa", "Visitas"], E.contar(vs, (v: V) => v.empresa).slice(0, 8))}
       ${tablaHtml("Visitas por anfitrión", ["Anfitrión", "Área", "Visitas"], E.porAnfitrion(vs).slice(0, 10).map((x) => [x.anfitrion, x.area, x.visitas]))}
+      ${tablaHtml(`Cancelaciones (${r.canceladas})`, ["Motivo", "Visitas"], E.contar(vs.filter((v: V) => v.cancelada_at), (v: V) => v.cancelacion_motivo))}
       <p style="margin:16px 0 0;color:#5B6B7F">Duración real promedio: ${r.duracionPromedio ?? "—"} h. Entradas autorizadas fuera de horario: ${r.autorizadas}. Intentos rechazados: ${rechazos ?? 0}.</p>`;
   }
   cuerpo += `<p style="margin:16px 0 0;font-size:12px;color:#5B6B7F">Detalle en el CSV adjunto.${solo ? " Modo auditoría activo: solo empresa principal." : ""} Reporte automático (sin IA).</p>`;
@@ -134,6 +137,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("reporte programado", e);
+    await notificar(db, { tipo: "reporte", audiencia: "administracion", titulo: `No se pudo enviar el reporte ${tipo}`, detalle: String(e).slice(0, 200) });
     return json({ error: "No se pudo enviar el reporte. Revisa la configuración de Resend." }, 502);
   }
   await db.from("bitacora_reportes").insert({ origen: porCron ? "programado" : "panel", destinatarios, filtros: { tipo, ...rango }, total_registros: vs.length });

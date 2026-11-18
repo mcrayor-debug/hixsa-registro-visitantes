@@ -11,6 +11,7 @@ import { registrarCambio, tienePermiso, usuarioActivo } from "../_shared/auth.ts
 import { EMAIL_RE, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { leerFoto, subirFoto } from "../_shared/fotos.ts";
 import { enviarPase } from "../_shared/pase.ts";
+import { notificar } from "../_shared/notificaciones.ts";
 import type { Perfil } from "../_shared/auth.ts";
 
 const ESTADOS: Record<string, string> = {
@@ -56,6 +57,9 @@ Deno.serve(async (req) => {
   await registrarCambio(db, yo, "personas", "edicion", per.id,
     { estado_bloqueo: per.estado_bloqueo, bloqueo_motivo: per.bloqueo_motivo, correo: per.correo, nombre: per.nombre },
     { ...cambios, correo: per.correo, nombre: per.nombre });
+
+  await notificar(db, { tipo: "bloqueo", audiencia: "administracion",
+    titulo: `Cambio de bloqueo: ${`${per.nombre ?? ""} ${per.apellidos ?? ""}`.trim() || per.correo} → ${ESTADOS[estado]}`, detalle: `${motivo || "Sin motivo"} · por ${yo.nombre}` });
 
   // Destinatarios: SUPERADMIN activos + anfitriones de visitas próximas y de la última visita
   const { data: supers } = await db.from("perfiles").select("email").eq("rol", "superadmin").eq("activo", true);

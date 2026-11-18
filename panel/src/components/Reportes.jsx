@@ -5,6 +5,7 @@ import { descargarCsv, fmtFechaHora } from '../lib/formato.js';
 import { puedeExportar } from '../lib/permisos.js';
 import * as E from '../../../supabase/functions/_shared/estadisticas.js';
 import EnviarReporte from './EnviarReporte.jsx';
+import Dona from './Dona.jsx';
 import { useToast } from './ui.jsx';
 
 const AZUL = '#0047BA', CIAN = '#00A9E0', NARANJA = '#F38A00';
@@ -143,6 +144,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
             <div className="graficas">
               <Grafica titulo="Visitas por día (lunes a viernes)"><BarChart data={d.porDia}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E3E9EF" />
                 <XAxis dataKey="dia" tick={{ fontSize: 12 }} /><YAxis allowDecimals={false} tick={{ fontSize: 12 }} /><Tooltip /><Bar isAnimationActive={false} dataKey="visitas" name="Visitas" fill={AZUL} radius={[4, 4, 0, 0]} /></BarChart></Grafica>
+              <Dona titulo={`Cancelaciones por motivo (${d.r.canceladas})`} datos={E.contar(visitas.filter((v) => v.cancelada_at), (v) => v.cancelacion_motivo).map(([nombre, valor]) => ({ nombre, valor }))} />
               <Grafica titulo="Horas pico de acceso"><BarChart data={d.pico}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E3E9EF" />
                 <XAxis dataKey="hora" tick={{ fontSize: 11 }} interval={1} /><YAxis allowDecimals={false} tick={{ fontSize: 12 }} /><Tooltip /><Bar isAnimationActive={false} dataKey="llegadas" name="Llegadas" fill={CIAN} radius={[4, 4, 0, 0]} /></BarChart></Grafica>
               <section className="card grafica"><h2>Visitantes nuevos contra recurrentes</h2>
@@ -157,11 +159,12 @@ export default function Reportes({ config, perfil, empresas = [] }) {
             </div>
           ) : (
             <div className="graficas">
+              <Dona titulo={`Cancelaciones por motivo (${d.r.canceladas})`} datos={E.contar(visitas.filter((v) => v.cancelada_at), (v) => v.cancelacion_motivo).map(([nombre, valor]) => ({ nombre, valor }))} />
               <section className="card grafica"><h2>Resumen consolidado del mes</h2>
                 <dl className="resumen-mes">
                   {[['Visitas', d.r.total], ['Visitantes únicos', d.r.unicos], ['Empresas de origen', d.r.empresas], ['Llegaron', d.r.llegaron],
                     ['Puntualidad', d.r.puntualidad === null ? '—' : `${d.r.puntualidad} %`], ['Duración real promedio', d.r.duracionPromedio === null ? '—' : `${d.r.duracionPromedio} h`],
-                    ['Autorizadas fuera de horario', d.r.autorizadas], ['Vencidas sin uso', d.r.sinUso], ['Nuevos / recurrentes', `${d.nr.nuevos} / ${d.nr.recurrentes}`]]
+                    ['Autorizadas fuera de horario', d.r.autorizadas], ['Vencidas sin uso', d.r.sinUso], ['Canceladas', d.r.canceladas], ['Nuevos / recurrentes', `${d.nr.nuevos} / ${d.nr.recurrentes}`]]
                     .map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
                 </dl></section>
               <section className="card grafica"><h2>Top 10 visitantes frecuentes</h2>

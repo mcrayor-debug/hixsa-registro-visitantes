@@ -5,6 +5,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.4";
 import { enviarCorreo, escapar, logoCorreo, plantilla } from "./correo.ts";
 import { formatoFecha, formatoHora, huellaPase } from "./formato.ts";
 import { base64Texto, crearIcs, enlaceGoogle, LUGAR_HIXSA, remitente } from "./calendario.ts";
+import { sha256Hex, tokenAleatorio } from "./tokens.ts";
 
 export interface VisitaPase {
   id: string; folio: string; nombre_completo: string; nombre?: string | null; correo: string; empresa: string;
@@ -45,6 +46,13 @@ export async function enviarPase(
     descripcion: `Visitas a: ${v.persona_visita}\nMotivo: ${v.motivo}\nFolio: ${v.folio}\nMuestra tu código QR en recepción.`,
   };
   const ics = crearIcs({ ...evento, uid: uid(v.folio), organizador: remitente(), metodo: "PUBLISH" });
+  // Enlace "Cancelar mi visita": token nuevo en cada envío (un reenvío invalida el anterior)
+  let enlaceCancelar = "";
+  if (s) {
+    const token = tokenAleatorio();
+    await db.from("visitantes").update({ cancelacion_token_hash: await sha256Hex(token) }).eq("id", v.id);
+    enlaceCancelar = `${s}/cancelar.html?t=${token}`;
+  }
   const nombre = v.nombre || v.nombre_completo.split(" ")[0];
   const aviso = o.aprueba === "anfitrion" ? "Tu anfitrión debe confirmar la visita; te avisaremos por correo cuando lo haga."
     : o.aprueba === "recepcion" ? "Recepción validará tu visita al llegar." : "";
@@ -64,7 +72,8 @@ export async function enviarPase(
           </div>${tabla(v, o.empresaVisita)}
           <p style="margin:18px 0 0"><a href="${escapar(enlaceGoogle(evento))}" style="color:#0047BA;font-weight:700">Agregar a Google Calendar</a>
             <span style="color:#5B6B7F"> o abre el archivo adjunto <b>invitacion.ics</b> para otros calendarios.</span></p>
-          <p style="margin:12px 0 0;font-size:13px;color:#5B6B7F">Llega dentro de tu horario: fuera de él, Recepción no podrá registrar tu entrada sin autorización.</p>`,
+          <p style="margin:12px 0 0;font-size:13px;color:#5B6B7F">Llega dentro de tu horario: fuera de él, Recepción no podrá registrar tu entrada sin autorización.</p>
+          ${enlaceCancelar ? `<p style="margin:12px 0 0;font-size:13px"><a href="${escapar(enlaceCancelar)}" style="color:#C0392B">Cancelar mi visita</a> <span style="color:#5B6B7F">(si ya no podrás asistir)</span></p>` : ""}`,
       }),
       texto: `Tu pase de visita a ${o.empresaVisita}. Folio ${v.folio}. Entrada: ${formatoFecha(v.entrada)} ${formatoHora(v.entrada)} h.`,
       adjuntos: [
@@ -138,4 +147,13 @@ export async function cancelarCalendario(db: SupabaseClient, v: VisitaPase, empr
   } catch (e) {
     console.error("cancelación de calendario", e);
   }
+}
+
+/** Enlace para que el anfitrión cancele la visita (token de un solo uso). Vacío si no hay sitio configurado. */
+export async function enlaceCancelacionAnfitrion(db: SupabaseClient, visitaId: string): Promise<string> {
+  const s = sitio();
+  if (!s) return "";
+  const token = tokenAleatorio();
+  await db.from("visitantes").update({ cancelacion_anfitrion_token_hash: await sha256Hex(token) }).eq("id", visitaId);
+  return `${s}/cancelar.html?t=${token}`;
 }

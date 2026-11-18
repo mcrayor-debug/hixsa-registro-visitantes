@@ -1,3 +1,4 @@
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { consultaVisitas } from '../../lib/supabase.js';
 import { descargarCsv, estadoVisita, fmtFechaHora, MOTIVOS, rangoPeriodo } from '../../lib/formato.js';
@@ -38,6 +39,7 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
 
   const visibles = useMemo(() => (filas ?? []).filter((v) =>
     vista === 'estuvieron' ? Boolean(v.llegada_at) : vista === 'sin_salida' ? sinSalida(v) : true), [filas, vista]);
+  const pag = usePaginacion(visibles, 50);
   const r = useMemo(() => resumen(visibles, { tolerancia: config?.tolerancia_min ?? 15 }), [visibles, config]);
   const nombre = `visitas_${aplicados.desde ?? ''}_${aplicados.hasta ?? ''}`;
   const titulo = vista === 'estuvieron' ? 'Quién estuvo' : vista === 'sin_salida' ? 'Visitas sin salida registrada' : 'Consulta de visitas';
@@ -108,7 +110,7 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
         <table className="tabla">
           <thead><tr><th>Folio</th><th>Visitante</th><th>Visita a</th><th>Motivo</th><th>Entrada</th><th>Llegada</th><th>Salida</th><th>Estado</th><th>Pase</th></tr></thead>
           <tbody>
-            {visibles.map((v) => (
+            {pag.visibles.map((v) => (
               <tr key={v.folio} className="fila-click" tabIndex={0} onClick={() => setFicha(v.folio)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setFicha(v.folio))}>
                 <td className="mono">{v.folio}</td>
@@ -126,6 +128,7 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
             ))}
           </tbody>
         </table>
+        {pag.controles}
         {filas && !n && <p className="vacio">No hay visitas con estos filtros. Prueba con otro periodo.</p>}
       </div>
       <p className="hint">Haz clic en una visita para ver su ficha, reenviar su QR o registrar llegada y salida.</p>

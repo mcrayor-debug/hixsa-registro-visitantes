@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.depurar-informacion]
 verify_jwt = false
+
+[functions.cancelar-visita]
+verify_jwt = false
+
+[functions.respaldos]
+verify_jwt = false

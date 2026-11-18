@@ -1,3 +1,4 @@
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, invocar } from '../../lib/supabase.js';
 import { fmtFechaHora } from '../../lib/formato.js';
@@ -24,6 +25,7 @@ export default function Visitantes({ empresas = [] }) {
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const toast = useToast();
+  const pag = usePaginacion(lista, 25);
 
   const cargar = useCallback(async () => {
     let q = supabase.from('personas').select('id, correo, nombre, apellidos, telefono, empresa, recurrente, estado_bloqueo, bloqueo_motivo, ultima_visita_at, identificacion_path')
@@ -70,7 +72,7 @@ export default function Visitantes({ empresas = [] }) {
         <table className="tabla">
           <thead><tr><th>Visitante</th><th>Empresa de origen</th><th>Tipo</th><th>Estado</th><th>Última visita</th><th><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>
-            {lista.map((p) => {
+            {pag.visibles.map((p) => {
               const [etiqueta, clase] = ESTADOS[p.estado_bloqueo] ?? ESTADOS.ninguno;
               return (
                 <tr key={p.id}>
@@ -91,6 +93,7 @@ export default function Visitantes({ empresas = [] }) {
             })}
           </tbody>
         </table>
+        {pag.controles}
         {!lista.length && <p className="vacio">No hay visitantes con estos filtros.</p>}
       </div>
 

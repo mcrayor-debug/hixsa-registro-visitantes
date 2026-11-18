@@ -18,3 +18,20 @@ export function validarDiasHabiles(entrada: string, salida: string, festivos: Se
   if (!esDiaHabil(diaCDMX(salida), festivos)) r.salida = MENSAJE_DIA_INHABIL;
   return r;
 }
+
+// ---------- Horario de recepción (configurable) ----------
+export interface HorarioRecepcion { apertura: string; ultima_entrada: string; cierre: string }
+const hhmm = (t: unknown, def: string) => String(t ?? def).slice(0, 5);
+export async function cargarHorario(db: SupabaseClient): Promise<HorarioRecepcion> {
+  const { data } = await db.from("configuracion").select("hora_apertura, hora_ultima_entrada, hora_cierre").eq("id", 1).maybeSingle();
+  return { apertura: hhmm(data?.hora_apertura, "09:00"), ultima_entrada: hhmm(data?.hora_ultima_entrada, "17:45"), cierre: hhmm(data?.hora_cierre, "18:00") };
+}
+const horaCdmx = (iso: string) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+/** Entrada entre la apertura y la última hora de entrada; salida a más tardar al cierre (la visita puede durar varios días). */
+export function validarHorario(entrada: string, salida: string, h: HorarioRecepcion): { entrada?: string; salida?: string } {
+  const r: { entrada?: string; salida?: string } = {};
+  const e = horaCdmx(entrada), s = horaCdmx(salida);
+  if (e < h.apertura || e > h.ultima_entrada) r.entrada = `Recibimos visitas de ${h.apertura} a ${h.cierre}; la última entrada es a las ${h.ultima_entrada}.`;
+  if (s > h.cierre || s < h.apertura) r.salida = `La salida debe ser entre las ${h.apertura} y las ${h.cierre}.`;
+  return r;
+}

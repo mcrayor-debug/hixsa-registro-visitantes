@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase.js';
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { fmtFechaHora, fmtHora } from '../../lib/formato.js';
 
 const TABLAS = { roles: 'Rol', empresas: 'Empresa', anfitriones: 'Anfitrión', anfitrion_empresas: 'Empresa de anfitrión', configuracion: 'Configuración', perfiles: 'Usuario', personas: 'Visitante', visitantes: 'Visitas', dias_festivos: 'Día festivo' };
-const ACCIONES = { alta: 'Alta', edicion: 'Edición', baja: 'Baja', reenvio: 'Reenvío de pase', invitacion: 'Nueva invitación', depuracion: 'Depuración' };
+const ACCIONES = { alta: 'Alta', edicion: 'Edición', baja: 'Baja', reenvio: 'Reenvío de pase', invitacion: 'Nueva invitación', depuracion: 'Depuración', cancelacion: 'Cancelación', respaldo: 'Respaldo', restauracion: 'Restauración' };
 const ORIGEN = { panel: 'Envío manual', automatico: 'Reporte automático', programado: 'Reporte automático', 'claude-code': 'Claude Code' };
 const POR_PAGINA = 25;
 const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(d);
@@ -12,6 +13,9 @@ const fmtDiaLargo = new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico
 const etiqueta = (b) => {
   const f = b.despues ?? b.antes ?? {};
   if (b.accion === 'reenvio' || b.accion === 'invitacion') return `${f.folio ?? ''} · ${f.nombre ?? ''} → ${f.correo ?? ''}`;
+  if (b.accion === 'cancelacion') return `${f.folio ?? ''} · ${f.nombre ?? ''} (${f.motivo ?? ''})`;
+  if (b.accion === 'respaldo') return `${f.tipo ?? ''}, ${((f.tamano ?? 0) / 1048576).toFixed(1)} MB${f.cifrado ? ', con contraseña' : ''}`;
+  if (b.accion === 'restauracion') return 'registros que faltaban';
   if (b.accion === 'depuracion') return `${f.visitas ?? 0} visitas (modo ${f.modo}${f.tipo_visitante && f.tipo_visitante !== 'todos' ? `, ${f.tipo_visitante}` : ''})`;
   return f.nombre ?? f.email ?? f.correo ?? (b.tabla === 'configuracion' ? 'General' : b.registro_id ?? '');
 };
@@ -27,6 +31,7 @@ export default function Bitacora() {
   const [filas, setFilas] = useState(null);
   const [total, setTotal] = useState(0);
   const [reportes, setReportes] = useState([]);
+  const pagRep = usePaginacion(reportes, 25);
 
   const cargar = useCallback(async () => {
     setFilas(null);
@@ -39,7 +44,7 @@ export default function Bitacora() {
   }, [f, pagina]);
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => {
-    supabase.from('bitacora_reportes').select('created_at, origen, destinatarios, total_registros').order('created_at', { ascending: false }).limit(20).then(({ data }) => setReportes(data ?? []));
+    supabase.from('bitacora_reportes').select('created_at, origen, destinatarios, total_registros').order('created_at', { ascending: false }).limit(300).then(({ data }) => setReportes(data ?? []));
   }, []);
   const cambiar = (k) => (e) => { setF({ ...f, [k]: e.target.value }); setPagina(0); };
 
@@ -67,7 +72,7 @@ export default function Bitacora() {
             <h3>{fmtDiaLargo.format(g.fecha).replace(/^./, (c) => c.toUpperCase())}</h3>
             <ul>{g.filas.map((b) => (
               <li key={b.id}><span className="bit-hora">{fmtHora.format(new Date(b.created_at))}</span>
-                <span><strong>{ACCIONES[b.accion]}</strong>{['reenvio', 'invitacion', 'depuracion'].includes(b.accion) ? '' : ` de ${TABLAS[b.tabla] ?? b.tabla}`}: {etiqueta(b)}
+                <span><strong>{ACCIONES[b.accion]}</strong>{['reenvio', 'invitacion', 'depuracion', 'cancelacion', 'respaldo', 'restauracion'].includes(b.accion) ? '' : ` de ${TABLAS[b.tabla] ?? b.tabla}`}: {etiqueta(b)}
                   <span className="muted small"> · {b.usuario_email ?? 'Sistema'}{cambios(b) ? ` · cambió: ${cambios(b)}` : ''}</span></span></li>
             ))}</ul>
           </div>
@@ -85,11 +90,12 @@ export default function Bitacora() {
         <h2 id="bit-titulo">Reportes enviados</h2>
         <ol className="bitacora">
           {!reportes.length && <li className="muted">Aún no se ha enviado ningún reporte.</li>}
-          {reportes.map((b, i) => (
+          {pagRep.visibles.map((b, i) => (
             <li key={i}><span className="bit-fecha">{fmtFechaHora.format(new Date(b.created_at))}</span>
               <span>{ORIGEN[b.origen] ?? b.origen}: {b.total_registros} visitas a {b.destinatarios.join(', ')}</span></li>
           ))}
         </ol>
+        {pagRep.controles}
       </section>
     </div>
   );
