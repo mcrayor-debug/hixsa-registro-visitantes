@@ -3,6 +3,7 @@ import ConsultaFecha from './consultas/ConsultaFecha.jsx';
 import ConsultaVisitante from './consultas/ConsultaVisitante.jsx';
 import ConsultaSeguridad from './consultas/ConsultaSeguridad.jsx';
 import { ALCANCES, alcanceDe } from '../lib/permisos.js';
+import Proteccion from './Proteccion.jsx';
 
 const GRUPOS = [['fecha', 'Por fecha'], ['visitante', 'Por visitante'], ['seguridad', 'Seguridad']];
 
@@ -17,9 +18,11 @@ export default function Consultas(props) {
         </div>
         <p className="muted small">Tu rol consulta: <strong>{ALCANCES[alcance]}</strong>{props.config?.modo_auditoria && ' · modo auditoría: solo HIXSA'}</p>
       </div>
-      {grupo === 'fecha' && <ConsultaFecha {...props} />}
-      {grupo === 'visitante' && <ConsultaVisitante {...props} />}
-      {grupo === 'seguridad' && <ConsultaSeguridad {...props} />}
+      <Proteccion key={grupo} nombre={`consultas/${grupo}`}>
+        {grupo === 'fecha' && <ConsultaFecha {...props} />}
+        {grupo === 'visitante' && <ConsultaVisitante {...props} />}
+        {grupo === 'seguridad' && <ConsultaSeguridad {...props} />}
+      </Proteccion>
     </div>
   );
 }

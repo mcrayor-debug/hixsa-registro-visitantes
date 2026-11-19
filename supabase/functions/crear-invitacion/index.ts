@@ -12,7 +12,7 @@ import { botonCorreo, enviarCorreo, escapar, logoCorreo, plantilla } from "../_s
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
 import { enlaceCancelacionAnfitrion, enviarPase } from "../_shared/pase.ts";
 import { sha256Hex, tokenAleatorio } from "../_shared/tokens.ts";
-import { cargarFestivos, cargarHorario, validarDiasHabiles, validarHorario } from "../_shared/habiles.ts";
+import { cargarEspeciales, cargarFestivos, cargarHorario, validarDiasHabiles, validarHorario } from "../_shared/habiles.ts";
 
 const MOTIVOS = ["Reunión", "Entrevista", "Proveedor o servicio", "Entrega o paquetería", "Otro"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
   if (salida <= entrada || salida.getTime() - entrada.getTime() > 7 * 24 * HORA) return json({ error: "La salida debe ser después de la entrada (máximo 7 días)." }, 422);
   const inhabil = validarDiasHabiles(entrada.toISOString(), salida.toISOString(), await cargarFestivos(db));
   if (inhabil.entrada || inhabil.salida) return json({ error: inhabil.entrada ?? inhabil.salida }, 422);
-  const fueraHorario = validarHorario(entrada.toISOString(), salida.toISOString(), await cargarHorario(db));
+  const horarioGeneral = await cargarHorario(db);
+  const fueraHorario = validarHorario(entrada.toISOString(), salida.toISOString(), horarioGeneral, await cargarEspeciales(db, horarioGeneral));
   if (fueraHorario.entrada || fueraHorario.salida) return json({ error: fueraHorario.entrada ?? fueraHorario.salida }, 422);
 
   const { data: empresa } = await db.from("empresas").select("id, nombre, activa").eq("id", empresaId).maybeSingle();

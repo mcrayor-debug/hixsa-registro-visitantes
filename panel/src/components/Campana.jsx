@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { fmtFechaHora } from '../lib/formato.js';
 
@@ -14,6 +14,15 @@ const hace = (iso) => {
 export default function Campana({ perfil, onLeidas }) {
   const [lista, setLista] = useState([]);
   const [abierta, setAbierta] = useState(false);
+  const caja = useRef(null);
+  // Cerrar con Esc o con clic fuera
+  useEffect(() => {
+    if (!abierta) return undefined;
+    const tecla = (e) => e.key === 'Escape' && setAbierta(false);
+    const clic = (e) => caja.current && !caja.current.contains(e.target) && setAbierta(false);
+    document.addEventListener('keydown', tecla); document.addEventListener('mousedown', clic);
+    return () => { document.removeEventListener('keydown', tecla); document.removeEventListener('mousedown', clic); };
+  }, [abierta]);
   const cargar = useCallback(async () => {
     const { data } = await supabase.from('notificaciones').select('id, created_at, tipo, titulo, detalle, folio').order('created_at', { ascending: false }).limit(30);
     setLista(data ?? []);
@@ -27,7 +36,7 @@ export default function Campana({ perfil, onLeidas }) {
     if (!error) onLeidas(ahora);
   }
   return (
-    <div className="campana">
+    <div className="campana" ref={caja}>
       <button type="button" className="campana-boton" aria-label={`Notificaciones${nuevas ? `: ${nuevas} nuevas` : ''}`} aria-expanded={abierta}
         onClick={() => { setAbierta(!abierta); if (!abierta) cargar(); }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
@@ -37,7 +46,10 @@ export default function Campana({ perfil, onLeidas }) {
         <div className="campana-panel" role="dialog" aria-label="Notificaciones">
           <div className="campana-cabecera">
             <strong>Notificaciones</strong>
-            {nuevas > 0 && <button type="button" className="link-btn" onClick={marcar}>Marcar como leídas</button>}
+            <span className="campana-acciones">
+              {nuevas > 0 && <button type="button" className="btn btn-compact campana-leidas" onClick={marcar}>✓ Marcar como leídas</button>}
+              <button type="button" className="campana-cerrar" aria-label="Cerrar notificaciones" onClick={() => setAbierta(false)}>×</button>
+            </span>
           </div>
           <ul>
             {!lista.length && <li className="vacio">Sin notificaciones.</li>}

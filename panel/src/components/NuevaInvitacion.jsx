@@ -22,7 +22,7 @@ export default function NuevaInvitacion({ persona, empresas = [], onCerrar, onCr
   const toast = useToast();
 
   useEffect(() => {
-    supabase.from('dias_festivos').select('fecha').then(({ data }) => {
+    supabase.from('dias_festivos').select('fecha').eq('tipo', 'inhabil').then(({ data }) => {
       const f = new Set((data ?? []).map((x) => x.fecha));
       setFestivos(f);
       setF((x) => (habil(new Date(x.entrada), f) ? x : { ...x, ...horarioInicial(f) }));

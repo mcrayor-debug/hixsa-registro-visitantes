@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { puede } from '../lib/permisos.js';
+import Proteccion from './Proteccion.jsx';
 import Usuarios from './config/Usuarios.jsx';
 import Roles from './config/Roles.jsx';
 import Empresas from './config/Empresas.jsx';
@@ -35,6 +36,7 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
             onClick={() => setApartado(id)}>{texto}</button>
         ))}
       </div>
+      <Proteccion key={apartado} nombre={`configuracion/${apartado}`}>
       {apartado === 'usuarios' && <Usuarios perfil={perfil} />}
       {apartado === 'roles' && <Roles />}
       {apartado === 'empresas' && <Empresas config={config} empresas={empresas} recargar={recargar} />}
@@ -45,6 +47,7 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
       {apartado === 'calendario' && <Calendario />}
       {apartado === 'respaldos' && <Respaldos />}
       {apartado === 'bitacora' && <Bitacora />}
+      </Proteccion>
     </div>
   );
 }

@@ -608,3 +608,5 @@ body { font-size: 1.0625rem; }
   background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .link-btn:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 4px; }
+
+.hint-especial { padding: 0.5rem 0.75rem; color: #6B4E00 !important; background: #FFF6DB; border-radius: var(--radius-field); font-weight: 600; }

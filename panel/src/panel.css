@@ -655,3 +655,17 @@ body.menu-abierto { overflow: hidden; }
   .avatar-movil { margin-left: 0; }
 }
 @media (max-width: 640px) { .horario-form { grid-template-columns: 1fr; } }
+
+/* v4.2.1: protección por sección, campana, horario especial */
+.proteccion { border-color: #F2B8B1; }
+.proteccion h2 { color: var(--hx-error) !important; }
+.campana-acciones { display: flex; align-items: center; gap: 0.375rem; }
+.campana-leidas { width: auto; min-height: 32px; padding: 0 0.75rem; font-size: 0.8125rem; }
+.campana-cerrar { width: 32px; height: 32px; font-size: 1.375rem; line-height: 1; color: var(--hx-muted); background: none; border: 0; border-radius: 8px; cursor: pointer; }
+.campana-cerrar:hover { background: var(--hx-surface); color: var(--hx-ink); }
+.campana-cerrar:focus-visible { outline: none; box-shadow: var(--ring); }
+.festivo-tipo { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; }
+.festivo-horas { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.5rem 0.75rem; background: #FFF6DB; border-radius: var(--radius-field); }
+.festivo-horas input { width: auto; min-height: 36px; }
+.cal-dia.especial { background: #FFF1C9; color: #6B4E00; border-color: var(--hx-amarillo); }
+.cal-muestra.especial { background: #FFF1C9; border-color: var(--hx-amarillo); }

@@ -22,7 +22,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
   const [envio, setEnvio] = useState(() => ({ tipo: 'diario', fecha: E.diaHabilAnterior(E.hoyCDMX()), enviando: false }));
   const [festivos, setFestivos] = useState(new Set());
   useEffect(() => {
-    supabase.from('dias_festivos').select('fecha').then(({ data }) => {
+    supabase.from('dias_festivos').select('fecha').eq('tipo', 'inhabil').then(({ data }) => {
       const f = new Set((data ?? []).map((x) => x.fecha));
       setFestivos(f); setEnvio((x) => ({ ...x, fecha: E.diaHabilAnterior(E.hoyCDMX(), f) }));
     });

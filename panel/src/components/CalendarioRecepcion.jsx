@@ -17,8 +17,8 @@ export default function CalendarioRecepcion({ onElegir }) {
     const r = mesDe(mes);
     consultaVisitas(r, 'folio, nombre_completo, empresa, persona_visita, entrada, salida, llegada_at, cancelada_at').limit(3000)
       .then(({ data }) => setVisitas(data ?? []));
-    supabase.from('dias_festivos').select('fecha, nombre').gte('fecha', r.desde).lte('fecha', r.hasta)
-      .then(({ data }) => setFestivos(Object.fromEntries((data ?? []).map((f) => [f.fecha, f.nombre]))));
+    supabase.from('dias_festivos').select('fecha, nombre, tipo, hora_inicio, hora_fin').gte('fecha', r.desde).lte('fecha', r.hasta)
+      .then(({ data }) => setFestivos(Object.fromEntries((data ?? []).map((f) => [f.fecha, f]))));
   }, [mes]);
 
   const porDia = useMemo(() => {
@@ -50,23 +50,26 @@ export default function CalendarioRecepcion({ onElegir }) {
           if (!d) return <span key={`v${i}`} />;
           const n = porDia[d]?.length ?? 0;
           const finde = diaSemanaYmd(d) >= 6;
-          const clases = ['cal-dia', nivel(n), finde ? 'finde' : '', festivos[d] ? 'festivo' : '', d === hoy ? 'hoy' : '', d === dia ? 'elegido' : ''].filter(Boolean).join(' ');
+          const f = festivos[d];
+          const especial = f?.tipo === 'especial';
+          const clases = ['cal-dia', nivel(n), finde ? 'finde' : '', f ? (especial ? 'especial' : 'festivo') : '', d === hoy ? 'hoy' : '', d === dia ? 'elegido' : ''].filter(Boolean).join(' ');
           return (
             <button key={d} type="button" className={clases} onClick={() => setDia(d)}
-              title={festivos[d] ? `Festivo: ${festivos[d]}` : `${n} ${n === 1 ? 'visita' : 'visitas'}`}
-              aria-label={`${Number(d.slice(8))}: ${festivos[d] ? `festivo, ${festivos[d]}` : `${n} visitas`}`}>
+              title={f ? (especial ? `${f.nombre}: ${f.hora_inicio.slice(0, 5)} a ${f.hora_fin.slice(0, 5)} · ${n} visitas` : `Festivo: ${f.nombre}`) : `${n} ${n === 1 ? 'visita' : 'visitas'}`}
+              aria-label={`${Number(d.slice(8))}: ${f ? (especial ? `horario especial de ${f.hora_inicio.slice(0, 5)} a ${f.hora_fin.slice(0, 5)}, ${n} visitas` : `festivo, ${f.nombre}`) : `${n} visitas`}`}>
               <span className="cal-num">{Number(d.slice(8))}</span>
-              <span className="cal-n">{festivos[d] ? 'festivo' : n || ''}</span>
+              <span className="cal-n">{f ? (especial ? `${Number(f.hora_inicio.slice(0, 2))}–${Number(f.hora_fin.slice(0, 2))}` : 'festivo') : n || ''}</span>
             </button>
           );
         })}
       </div>
       <div className="cal-leyenda" aria-hidden="true">
         <span><i className="cal-muestra pocas" />1–3</span><span><i className="cal-muestra normal" />4–8</span>
-        <span><i className="cal-muestra muchas" />9 o más</span><span><i className="cal-muestra festivo" />Festivo</span>
+        <span><i className="cal-muestra muchas" />9 o más</span><span><i className="cal-muestra festivo" />Festivo</span><span><i className="cal-muestra especial" />Horario especial</span>
       </div>
       <div className="cal-dia-lista">
-        <p className="cal-dia-titulo"><strong>{dd} de {MESES[dm - 1]}</strong> · {festivos[dia] ? `Festivo: ${festivos[dia]}` : `${delDia.length} ${delDia.length === 1 ? 'visita' : 'visitas'}`}</p>
+        <p className="cal-dia-titulo"><strong>{dd} de {MESES[dm - 1]}</strong> · {festivos[dia]?.tipo === 'inhabil' ? `Festivo: ${festivos[dia].nombre}`
+          : `${festivos[dia] ? `${festivos[dia].nombre} (${festivos[dia].hora_inicio.slice(0, 5)} a ${festivos[dia].hora_fin.slice(0, 5)}) · ` : ''}${delDia.length} ${delDia.length === 1 ? 'visita' : 'visitas'}`}</p>
         <ul>{delDia.slice(0, 12).map((v) => (
           <li key={v.folio}><button type="button" className="cal-visita" onClick={() => onElegir(v.folio)}>
             <span className="hoy-hora">{fmtHora.format(new Date(v.entrada))} – {fmtHora.format(new Date(v.salida))}</span> {v.nombre_completo}</button></li>

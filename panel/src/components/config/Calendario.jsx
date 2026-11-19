@@ -32,14 +32,14 @@ export default function Calendario() {
   const anioActual = Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric' }).format(new Date()));
   const [anio, setAnio] = useState(anioActual);
   const [lista, setLista] = useState([]);
-  const [nuevo, setNuevo] = useState({ fecha: '', nombre: '' });
+  const [nuevo, setNuevo] = useState({ fecha: '', nombre: '', tipo: 'inhabil', inicio: '09:00', fin: '14:00' });
   const [error, setError] = useState('');
   const [horario, setHorario] = useState(null);
   const toast = useToast();
   const pag = usePaginacion(lista, 25);
 
   const cargar = useCallback(async () => {
-    const { data } = await supabase.from('dias_festivos').select('fecha, nombre').gte('fecha', `${anio}-01-01`).lte('fecha', `${anio}-12-31`).order('fecha');
+    const { data } = await supabase.from('dias_festivos').select('fecha, nombre, tipo, hora_inicio, hora_fin').gte('fecha', `${anio}-01-01`).lte('fecha', `${anio}-12-31`).order('fecha');
     setLista(data ?? []);
   }, [anio]);
   useEffect(() => { cargar(); }, [cargar]);
@@ -60,9 +60,19 @@ export default function Calendario() {
     e.preventDefault();
     if (!nuevo.fecha) return setError('Elige la fecha.');
     if (nuevo.nombre.trim().length < 2) return setError('Escribe el nombre del día.');
-    const { error: err } = await supabase.from('dias_festivos').insert({ fecha: nuevo.fecha, nombre: nuevo.nombre.trim() });
+    const especial = nuevo.tipo === 'especial';
+    if (especial && !(nuevo.inicio && nuevo.fin && nuevo.inicio < nuevo.fin)) return setError('La hora de inicio debe ser antes de la hora de fin.');
+    const { error: err } = await supabase.from('dias_festivos').insert({ fecha: nuevo.fecha, nombre: nuevo.nombre.trim(), tipo: nuevo.tipo,
+      hora_inicio: especial ? nuevo.inicio : null, hora_fin: especial ? nuevo.fin : null });
     if (err) return setError(err.code === '23505' ? 'Esa fecha ya está en la lista.' : mensajeError(err));
-    setError(''); setNuevo({ fecha: '', nombre: '' }); toast('Día festivo agregado.');
+    setError('');
+    // Aviso: visitas ya registradas que quedan fuera del nuevo horario (no se cancelan solas)
+    const { data: vs } = await supabase.from('visitantes').select('entrada, salida, cancelada_at')
+      .gte('entrada', `${nuevo.fecha}T00:00:00-06:00`).lte('entrada', `${nuevo.fecha}T23:59:59.999-06:00`).is('cancelada_at', null);
+    const hora = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+    const fuera = (vs ?? []).filter((v) => !especial || hora(v.entrada) < nuevo.inicio || hora(v.entrada) >= nuevo.fin || hora(v.salida) > nuevo.fin).length;
+    toast(`${especial ? 'Horario especial agregado' : 'Día sin visitas agregado'}.${fuera ? ` Atención: ${fuera} ${fuera === 1 ? 'visita registrada queda' : 'visitas registradas quedan'} fuera; revísalas en Consultas.` : ''}`);
+    setNuevo({ fecha: '', nombre: '', tipo: 'inhabil', inicio: '09:00', fin: '14:00' });
     if (nuevo.fecha.startsWith(String(anio))) cargar(); else setAnio(Number(nuevo.fecha.slice(0, 4)));
   }
   async function quitar(f) {
@@ -72,7 +82,7 @@ export default function Calendario() {
   }
   async function cargarLFT() {
     const existentes = new Set(lista.map((f) => f.fecha));
-    const faltan = descansoObligatorio(anio).filter(([f]) => !existentes.has(f)).map(([fecha, nombre]) => ({ fecha, nombre }));
+    const faltan = descansoObligatorio(anio).filter(([f]) => !existentes.has(f)).map(([fecha, nombre]) => ({ fecha, nombre, tipo: 'inhabil' }));
     if (!faltan.length) return toast(`Los días de descanso obligatorio de ${anio} ya están cargados.`);
     const { error: err } = await supabase.from('dias_festivos').insert(faltan);
     toast(err ? mensajeError(err) : `Se agregaron ${faltan.length} días de descanso obligatorio de ${anio}.`); cargar();
@@ -96,8 +106,8 @@ export default function Calendario() {
     <section className="card" aria-labelledby="cal-titulo">
       <div className="card-head">
         <div>
-          <h2 id="cal-titulo">Calendario laboral</h2>
-          <p className="muted">Las visitas se agendan de lunes a viernes. En los días de esta lista tampoco se agendan visitas ni se envía el reporte diario. Una visita sí puede cruzar un fin de semana.</p>
+          <h2 id="cal-titulo">Días festivos y horarios especiales</h2>
+          <p className="muted">Las visitas se agendan de lunes a viernes. <strong>Sin visitas:</strong> ese día no se agendan visitas ni se envía el reporte diario. <strong>Horario especial:</strong> ese día solo se reciben visitas en el horario indicado. Una visita sí puede cruzar un fin de semana.</p>
         </div>
         <select aria-label="Año" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ width: 'auto' }}>
           {[anioActual - 1, anioActual, anioActual + 1, anioActual + 2].map((a) => <option key={a} value={a}>{a}</option>)}
@@ -107,13 +117,23 @@ export default function Calendario() {
         <input type="date" aria-label="Fecha" value={nuevo.fecha} onChange={(e) => setNuevo({ ...nuevo, fecha: e.target.value })} />
         <input type="text" aria-label="Nombre" placeholder="Ej.: Aniversario de la empresa" maxLength={80} value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />
         <button className="btn btn-compact btn-icono" type="submit"><Icono nombre="agregar" /> Agregar</button>
+        <div className="festivo-tipo" role="radiogroup" aria-label="Tipo de día">
+          <label className="check"><input type="radio" name="tipo-dia" checked={nuevo.tipo === 'inhabil'} onChange={() => setNuevo({ ...nuevo, tipo: 'inhabil' })} /><span>Sin visitas (día inhábil)</span></label>
+          <label className="check"><input type="radio" name="tipo-dia" checked={nuevo.tipo === 'especial'} onChange={() => setNuevo({ ...nuevo, tipo: 'especial' })} /><span>Horario especial</span></label>
+          {nuevo.tipo === 'especial' && <span className="festivo-horas">
+            <label>Disponible de <input type="time" aria-label="Hora de inicio" value={nuevo.inicio} onChange={(e) => setNuevo({ ...nuevo, inicio: e.target.value })} /></label>
+            <label>a <input type="time" aria-label="Hora de fin" value={nuevo.fin} onChange={(e) => setNuevo({ ...nuevo, fin: e.target.value })} /></label>
+            <span className="small muted">La última entrada guarda el mismo margen del horario normal.</span>
+          </span>}
+        </div>
       </form>
       <Mensaje>{error}</Mensaje>
       <div className="table-wrap">
         <table className="tabla">
-          <thead><tr><th>Fecha</th><th>Día festivo</th><th><span className="sr-only">Acciones</span></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Día</th><th>Tipo</th><th><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>{pag.visibles.map((f) => (
             <tr key={f.fecha}><td className="nowrap">{fmt.format(new Date(`${f.fecha}T12:00:00Z`))}</td><td>{f.nombre}</td>
+              <td>{f.tipo === 'especial' ? <span className="pill aviso">{f.hora_inicio.slice(0, 5)} – {f.hora_fin.slice(0, 5)}</span> : <span className="pill error">Sin visitas</span>}</td>
               <td className="acciones-fila"><BotonIcono icono="eliminar" texto="Quitar día festivo" peligro onClick={() => quitar(f)} /></td></tr>
           ))}</tbody>
         </table>

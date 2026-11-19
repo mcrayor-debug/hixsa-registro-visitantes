@@ -11,7 +11,7 @@ import { clienteServicio } from "../_shared/supabase.ts";
 import { botonCorreo, EMAIL_RE, enviarCorreo, escapar, logoCorreo, plantilla } from "../_shared/correo.ts";
 import { formatoFecha, formatoHora } from "../_shared/formato.ts";
 import { enlaceCancelacionAnfitrion, enviarPase } from "../_shared/pase.ts";
-import { cargarFestivos, cargarHorario, validarDiasHabiles, validarHorario } from "../_shared/habiles.ts";
+import { cargarEspeciales, cargarFestivos, cargarHorario, validarDiasHabiles, validarHorario } from "../_shared/habiles.ts";
 import { notificar } from "../_shared/notificaciones.ts";
 import { filtroAuditoria } from "../_shared/auth.ts";
 import { sha256Hex, tokenAleatorio, TOKEN_RE } from "../_shared/tokens.ts";
@@ -126,7 +126,8 @@ Deno.serve(async (req) => {
   // Entrada y salida en día hábil (lunes a viernes, sin festivos)
   const inhabil = validarDiasHabiles(datos.entrada!, datos.salida!, await cargarFestivos(db));
   if (inhabil.entrada || inhabil.salida) return json({ error: "Revisa los datos marcados.", campos: inhabil }, 422);
-  const fueraHorario = validarHorario(datos.entrada!, datos.salida!, await cargarHorario(db));
+  const horarioGeneral = await cargarHorario(db);
+  const fueraHorario = validarHorario(datos.entrada!, datos.salida!, horarioGeneral, await cargarEspeciales(db, horarioGeneral));
   if (fueraHorario.entrada || fueraHorario.salida) return json({ error: "Revisa los datos marcados.", campos: fueraHorario }, 422);
   const { count } = await db.from("visitantes").select("id", { count: "exact", head: true })
     .eq("correo", datos.correo).gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());

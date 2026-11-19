@@ -11,6 +11,7 @@ const Configuracion = lazy(() => import('./components/Configuracion.jsx'));
 import { Dialogo, Mensaje, useToast } from './components/ui.jsx';
 import Avatar from './components/Avatar.jsx';
 import Campana from './components/Campana.jsx';
+import Proteccion from './components/Proteccion.jsx';
 import { quitarFotoUsuario, subirFotoUsuario } from './lib/usuarios.js';
 
 const PESTANAS = [
@@ -177,6 +178,7 @@ export default function App() {
           : !perfil ? <Login error={error} onEntrar={entrar} />
             : !pestanas.length ? <p className="status">Tu rol no tiene secciones asignadas. Pide a un SUPERADMIN que lo configure.</p>
               : (
+                <Proteccion key={tab} nombre={tab}>
                 <Suspense fallback={<p className="muted cargando">Cargando…</p>}>
                 <section id={`vista-${tab}`} role="tabpanel" className="panel-section">
                   {tab === 'recepcion' && <Recepcion paseInicial={pase} />}
@@ -188,6 +190,7 @@ export default function App() {
                   )}
                 </section>
                 </Suspense>
+                </Proteccion>
               )}
       </main>
       {perfil && <CambiarPassword abierto={dialogo === 'password'} onCerrar={() => setDialogo(null)} />}

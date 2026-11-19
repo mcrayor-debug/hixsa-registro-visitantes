@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePaginacion } from '../../lib/paginacion.jsx';
 import { supabase, invocar, CAMPOS_VISITA } from '../../lib/supabase.js';
 import { estadoVisita, fmtFechaHora } from '../../lib/formato.js';
 import FichaVisita from '../FichaVisita.jsx';

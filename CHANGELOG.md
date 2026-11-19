@@ -1,5 +1,18 @@
 # Historial de versiones
 
+## 4.2.1 (noviembre 2026)
+
+### Correcciones
+- **Consultas → Por visitante** dejaba el panel en blanco (faltaba importar la paginación).
+- **Protección por sección**: si una pantalla falla, solo esa sección muestra un aviso y el resto del panel sigue funcionando.
+
+### Nuevo
+- **Días con horario especial** en el calendario laboral (p. ej. *Cena de fin de año, 09:00 a 14:00*): se reciben visitas solo en ese horario (formulario, invitaciones y servidor); la última entrada guarda el margen del horario normal. Al agregarlo, avisa cuántas visitas registradas quedan fuera. Se marca en amarillo en el calendario de Recepción.
+- **Notificaciones**: botón para cerrar (también con Esc o clic fuera) y *Marcar como leídas* como botón.
+
+### Cambios
+- Migración `20261120_v4_2_1.sql`. Los días "sin visitas" siguen igual; los especiales cuentan como hábiles para reportes.
+
 ## 4.2.0 (noviembre 2026)
 
 ### Nuevo
