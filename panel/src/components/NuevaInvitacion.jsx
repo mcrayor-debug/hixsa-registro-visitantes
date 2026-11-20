@@ -56,7 +56,7 @@ export default function NuevaInvitacion({ persona, empresas = [], onCerrar, onCr
     <Dialogo abierto onCerrar={onCerrar} titulo="Nueva invitación" ancho={560}>
       <form onSubmit={enviar} noValidate>
         <div className="invitado">
-          <span className="avatar avatar-vacio" aria-hidden="true">{(persona.nombre ?? persona.correo).charAt(0).toUpperCase()}</span>
+          <span className="avatar avatar-vacio avatar-visitante" aria-hidden="true">{(`${persona.nombre ?? ''} ${persona.apellidos ?? ''}`.trim() || persona.correo).split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase()}</span>
           <span><strong>{`${persona.nombre ?? ''} ${persona.apellidos ?? ''}`.trim() || persona.correo}</strong><br />
             <span className="muted small">{persona.correo} · {persona.empresa}{persona.identificacion_path ? ' · identificación guardada' : ' · sin identificación guardada'}</span></span>
         </div>

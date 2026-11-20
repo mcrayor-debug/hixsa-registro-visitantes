@@ -1,5 +1,22 @@
 # Historial de versiones
 
+## 4.2.2 (noviembre 2026)
+
+### Correcciones
+- **Celular: tarjetas encimadas** en Dashboard, Reportes y Configuración. Una regla del formulario público (`.card { margin-top: -1.5rem }`) se aplicaba también al panel; ahora solo afecta al formulario.
+- **Reportes mensual**: el selector de mes nativo salía más pequeño y en inglés en Android; ahora usa el mismo campo de fecha que el semanal (*Mes que contiene*).
+- Campos del envío manual de reportes en celular con altura normal.
+
+### Nuevo
+- **Detalle de visitantes** opcional en Reportes (pantalla paginada, PDF y correo) y en *Enviar reporte ahora*. Los reportes automáticos no cambian.
+- Columna **Empresa a visitar** en Consultas y en el detalle (solo con varias empresas).
+- *Consultas → Por visitante*: hasta 200 resultados, de 10 en 10.
+- Iniciales sin foto con fondo de tono bajo: **azul** para usuarios, **naranja** para visitantes.
+- Configuración en celular con **selector desplegable** de apartados; Dashboard con filtros en un renglón deslizable.
+
+### Cambios
+- **Modo auditoría**: solo un punto amarillo junto al logo; el texto solo aparece en Configuración → Empresas. En Dashboard, Consultas y Reportes se muestra *Empresa a visitar: HIXSA* como texto fijo. Se retiró la leyenda de los correos de reportes.
+
 ## 4.2.1 (noviembre 2026)
 
 ### Correcciones

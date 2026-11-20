@@ -7,6 +7,7 @@ import NuevaInvitacion from '../NuevaInvitacion.jsx';
 import { puede } from '../../lib/permisos.js';
 import { Dialogo, Estado, useToast } from '../ui.jsx';
 
+const iniciales = (p) => (`${p.nombre ?? ''} ${p.apellidos ?? ''}`.trim() || p.correo).split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 const ESTADOS_BLOQUEO = { no_deseado: ['No deseado', 'aviso'], restringido: ['Restringido', 'restringido'], bloqueado: ['Bloqueado', 'error'] };
 
 export default function ConsultaVisitante({ perfil, empresas = [] }) {
@@ -20,13 +21,14 @@ export default function ConsultaVisitante({ perfil, empresas = [] }) {
   const [enviando, setEnviando] = useState('');
   const toast = useToast();
   const pag = usePaginacion(visitas, 25);
+  const pagP = usePaginacion(personas, 10);
 
   useEffect(() => {
     const t = texto.replace(/[,()*%\\]/g, ' ').trim();
     if (t.length < 2) { setPersonas([]); return undefined; }
     const id = setTimeout(async () => {
       const { data } = await supabase.from('personas').select('id, correo, nombre, apellidos, empresa, recurrente, estado_bloqueo, ultima_visita_at, identificacion_path')
-        .or(['nombre', 'apellidos', 'correo'].map((c) => `${c}.ilike.%${t}%`).join(',')).order('ultima_visita_at', { ascending: false, nullsFirst: false }).limit(20);
+        .or(['nombre', 'apellidos', 'correo'].map((c) => `${c}.ilike.%${t}%`).join(',')).order('ultima_visita_at', { ascending: false, nullsFirst: false }).limit(200);
       setPersonas(data ?? []);
     }, 250);
     return () => clearTimeout(id);
@@ -51,15 +53,16 @@ export default function ConsultaVisitante({ perfil, empresas = [] }) {
         <div className="field"><label htmlFor="cv-buscar">Buscar visitante por nombre o correo</label>
           <input id="cv-buscar" type="search" placeholder="Escribe al menos 2 letras" value={texto} onChange={(e) => setTexto(e.target.value)} /></div>
         <ul className="lista-personas">
-          {personas.map((p) => (
+          {pagP.visibles.map((p) => (
             <li key={p.id}><button type="button" className="hoy-item" aria-current={sel?.id === p.id} onClick={() => abrir(p)}>
-              <span className="avatar avatar-vacio" aria-hidden="true">{(p.nombre ?? p.correo).charAt(0).toUpperCase()}</span>
+              <span className="avatar avatar-vacio avatar-visitante" aria-hidden="true">{iniciales(p)}</span>
               <span className="hoy-datos"><strong>{`${p.nombre ?? ''} ${p.apellidos ?? ''}`.trim() || p.correo}</strong><span className="muted small">{p.correo} · {p.empresa}</span></span>
               {ESTADOS_BLOQUEO[p.estado_bloqueo] && <span className={`pill ${ESTADOS_BLOQUEO[p.estado_bloqueo][1]}`}>{ESTADOS_BLOQUEO[p.estado_bloqueo][0]}</span>}
             </button></li>
           ))}
           {texto.trim().length >= 2 && !personas.length && <li className="vacio">Sin coincidencias.</li>}
         </ul>
+        {pagP.controles}
       </section>
 
       {sel && (

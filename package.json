@@ -1,6 +1,6 @@
 {
   "name": "hixsa-registro-visitantes",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "private": true,
   "description": "Formulario de registro rápido de visitantes para HIXSA (Supabase + Cloudflare Pages).",
   "scripts": {

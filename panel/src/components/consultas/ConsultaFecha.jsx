@@ -49,8 +49,8 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
     const doc = await crearPdf({
       titulo, subtitulo: `Periodo: ${aplicados.desde} a ${aplicados.hasta}. Generado por ${perfil.nombre}.`,
       kpis: [['visitas', r.total], ['únicos', r.unicos], ['llegaron', r.llegaron], ['duración promedio', r.duracionPromedio === null ? '—' : `${r.duracionPromedio} h`]],
-      secciones: [{ titulo: 'Detalle', columnas: ['Folio', 'Visitante', 'Empresa', 'Visita a', 'Entrada', 'Llegada', 'Salida', 'Estado'],
-        filas: visibles.map((v) => [v.folio, v.nombre_completo, v.empresa, v.persona_visita, fmtFechaHora.format(new Date(v.entrada)),
+      secciones: [{ titulo: 'Detalle', columnas: ['Folio', 'Visitante', 'Empresa', ...(config?.modo_auditoria ? [] : ['Empresa a visitar']), 'Visita a', 'Entrada', 'Llegada', 'Salida', 'Estado'],
+        filas: visibles.map((v) => [v.folio, v.nombre_completo, v.empresa, ...(config?.modo_auditoria ? [] : [v.empresas?.nombre ?? '']), v.persona_visita, fmtFechaHora.format(new Date(v.entrada)),
           v.llegada_at ? fmtFechaHora.format(new Date(v.llegada_at)) : '—', v.salida_real_at ? fmtFechaHora.format(new Date(v.salida_real_at)) : '—', estadoVisita(v).texto]) }],
     });
     return { doc, nombre: `${nombre}.pdf`, base64: doc.base64() };
@@ -69,11 +69,13 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
         <div className="filtros-grid">
           <div className="field"><label htmlFor="f-desde">Desde</label><input id="f-desde" type="date" value={f.desde} onChange={cambiar('desde')} /></div>
           <div className="field"><label htmlFor="f-hasta">Hasta</label><input id="f-hasta" type="date" value={f.hasta} onChange={cambiar('hasta')} /></div>
+          {config?.modo_auditoria ? <p className="empresa-fija field">Empresa a visitar: <strong>{empresas[0]?.nombre ?? 'HIXSA'}</strong></p> : (
           <div className="field"><label htmlFor="f-empresa-visita">Empresa a visitar</label>
             <select id="f-empresa-visita" value={f.empresa_visita_id} onChange={cambiar('empresa_visita_id')}>
               {!config?.modo_auditoria && <option value="">Todas</option>}
               {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select></div>
+          )}
           <div className="field"><label htmlFor="f-motivo">Motivo</label>
             <select id="f-motivo" value={f.motivo} onChange={cambiar('motivo')}><option value="">Todos</option>{MOTIVOS.map((m) => <option key={m}>{m}</option>)}</select></div>
           <div className="field"><label htmlFor="f-empresa">Empresa de origen</label><input id="f-empresa" type="text" maxLength={80} value={f.empresa} onChange={cambiar('empresa')} /></div>
@@ -108,14 +110,15 @@ export default function ConsultaFecha({ config, perfil, empresas = [] }) {
 
       <div className="table-wrap card">
         <table className="tabla">
-          <thead><tr><th>Folio</th><th>Visitante</th><th>Visita a</th><th>Motivo</th><th>Entrada</th><th>Llegada</th><th>Salida</th><th>Estado</th><th>Pase</th></tr></thead>
+          <thead><tr><th>Folio</th><th>Visitante</th>{!config?.modo_auditoria && <th>Empresa a visitar</th>}<th>Visita a</th><th>Motivo</th><th>Entrada</th><th>Llegada</th><th>Salida</th><th>Estado</th><th>Pase</th></tr></thead>
           <tbody>
             {pag.visibles.map((v) => (
               <tr key={v.folio} className="fila-click" tabIndex={0} onClick={() => setFicha(v.folio)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setFicha(v.folio))}>
                 <td className="mono">{v.folio}</td>
                 <td><strong>{v.nombre_completo}</strong><br /><span className="muted small">{v.empresa}</span></td>
-                <td>{v.persona_visita}<br /><span className="muted small">{v.empresas?.nombre}</span></td>
+                {!config?.modo_auditoria && <td>{v.empresas?.nombre ?? '—'}</td>}
+                <td>{v.persona_visita}</td>
                 <td>{v.motivo}</td>
                 <td className="nowrap">{fmtFechaHora.format(new Date(v.entrada))}</td>
                 <td className="nowrap">{v.llegada_at ? fmtFechaHora.format(new Date(v.llegada_at)) : '—'}</td>

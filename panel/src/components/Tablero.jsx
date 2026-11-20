@@ -72,14 +72,16 @@ export default function Tablero({ empresas = [], auditoria = false }) {
         {PERIODOS.map(([id, texto]) => (
           <button key={id} type="button" className="chip-btn" aria-pressed={periodo === id} onClick={() => setPeriodo(id)}>{texto}</button>
         ))}
-        <label className="tablero-empresa">
+      </div>
+      {auditoria ? <p className="empresa-fija">Empresa a visitar: <strong>{empresas[0]?.nombre ?? 'HIXSA'}</strong></p> : (
+        <div className="tablero-empresa-fila"><label className="tablero-empresa">
           <span className="sr-only">Empresa a visitar</span>
           <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} aria-label="Empresa a visitar">
             {!auditoria && <option value="">Todas las empresas</option>}
             {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </select>
-        </label>
-      </div>
+        </label></div>
+      )}
       {error && <p className="status">{error}</p>}
       {!d ? <p className="muted">Cargando tablero…</p> : (
         <>

@@ -30,6 +30,12 @@ export default function Configuracion({ perfil, config, empresas, recargar }) {
   const [apartado, setApartado] = useState(visibles[0]?.[0]);
   return (
     <div className="config">
+      <div className="field config-select">
+        <label htmlFor="config-apartado">Apartado</label>
+        <select id="config-apartado" value={apartado} onChange={(e) => setApartado(e.target.value)}>
+          {visibles.map(([id, texto]) => <option key={id} value={id}>{texto}</option>)}
+        </select>
+      </div>
       <div className="config-nav filtros-rapidos" role="tablist" aria-label="Apartados de configuración">
         {visibles.map(([id, texto]) => (
           <button key={id} type="button" role="tab" className="chip-btn" aria-pressed={apartado === id} aria-selected={apartado === id}

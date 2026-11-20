@@ -56,7 +56,8 @@ Deno.serve(async (req) => {
     const yo = await usuarioActivo(req, db);
     if (!yo || !(esSuperadmin(yo) || yo.roles?.puede_exportar)) return json({ error: "Tu rol no puede enviar reportes." }, 403);
   }
-  const p = await leerJson<{ tipo?: string; fecha?: string }>(req);
+  const p = await leerJson<{ tipo?: string; fecha?: string; detalle?: boolean }>(req);
+  const conDetalle = !porCron && p?.detalle === true; // solo envíos manuales desde el panel
   const tipo = p?.tipo === "semanal" ? "semanal" : "diario";
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(p?.fecha ?? "")) ? String(p!.fecha) : null;
 
@@ -127,7 +128,15 @@ Deno.serve(async (req) => {
       ${tablaHtml(`Cancelaciones (${r.canceladas})`, ["Motivo", "Visitas"], E.contar(vs.filter((v: V) => v.cancelada_at), (v: V) => v.cancelacion_motivo))}
       <p style="margin:16px 0 0;color:#5B6B7F">Duración real promedio: ${r.duracionPromedio ?? "—"} h. Entradas autorizadas fuera de horario: ${r.autorizadas}. Intentos rechazados: ${rechazos ?? 0}.</p>`;
   }
-  cuerpo += `<p style="margin:16px 0 0;font-size:12px;color:#5B6B7F">Detalle en el CSV adjunto.${solo ? " Modo auditoría activo: solo empresa principal." : ""} Reporte automático (sin IA).</p>`;
+  if (conDetalle) {
+    const estado = (v: V) => v.cancelada_at ? "Cancelada" : v.salida_real_at ? "Concluida" : v.llegada_at ? "En sitio" : E.sinUso(v) ? "Vencida sin uso" : "Programada";
+    cuerpo += tablaHtml(`Detalle de visitantes (${vs.length})`,
+      ["Entrada", "Visitante", "Empresa de origen", ...(solo ? [] : ["Empresa a visitar"]), "Visita a", "Estado"],
+      vs.slice(0, 300).map((v) => [`${fechaLarga(E.diaCDMX(v.entrada)).replace(/^\w+, /, "")} ${hora(v.entrada)}`, v.nombre_completo, v.empresa,
+        ...(solo ? [] : [v.empresas?.nombre ?? ""]), v.persona_visita, estado(v)]));
+    if (vs.length > 300) cuerpo += `<p style="margin:6px 0 0;font-size:12px;color:#5B6B7F">Se muestran 300 de ${vs.length}; el resto está en el CSV.</p>`;
+  }
+  cuerpo += `<p style="margin:16px 0 0;font-size:12px;color:#5B6B7F">Detalle en el CSV adjunto. Reporte automático (sin IA).</p>`;
 
   try {
     await enviarCorreo({

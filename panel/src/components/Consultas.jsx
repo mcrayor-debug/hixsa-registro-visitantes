@@ -16,7 +16,7 @@ export default function Consultas(props) {
         <div className="filtros-rapidos consultas-grupos" role="tablist" aria-label="Tipo de consulta">
           {GRUPOS.map(([id, t]) => <button key={id} type="button" role="tab" className="chip-btn chip-grupo" aria-pressed={grupo === id} aria-selected={grupo === id} onClick={() => setGrupo(id)}>{t}</button>)}
         </div>
-        <p className="muted small">Tu rol consulta: <strong>{ALCANCES[alcance]}</strong>{props.config?.modo_auditoria && ' · modo auditoría: solo HIXSA'}</p>
+        <p className="muted small">Tu rol consulta: <strong>{ALCANCES[alcance]}</strong></p>
       </div>
       <Proteccion key={grupo} nombre={`consultas/${grupo}`}>
         {grupo === 'fecha' && <ConsultaFecha {...props} />}

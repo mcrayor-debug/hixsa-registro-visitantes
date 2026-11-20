@@ -346,7 +346,7 @@ input:focus-visible, textarea:focus-visible {
   .checkin-date { margin: 0; }
 
   .form-area { padding: 0 0 env(safe-area-inset-bottom, 0px); }
-  .card {
+  .form-area .card {
     position: relative;
     max-width: none;
     margin-top: -1.5rem;

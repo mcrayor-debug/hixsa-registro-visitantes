@@ -669,3 +669,31 @@ body.menu-abierto { overflow: hidden; }
 .festivo-horas input { width: auto; min-height: 36px; }
 .cal-dia.especial { background: #FFF1C9; color: #6B4E00; border-color: var(--hx-amarillo); }
 .cal-muestra.especial { background: #FFF1C9; border-color: var(--hx-amarillo); }
+
+/* =====================================================================
+   v4.2.2: iniciales en tono bajo, punto de auditoría, celular sin empalmes
+   ===================================================================== */
+.avatar-usuario-texto { background: rgba(0, 71, 186, 0.14); color: #0047BA; }
+.avatar-visitante { background: rgba(243, 138, 0, 0.16) !important; color: #A35C00 !important; font-size: 0.8125rem; }
+.persona .avatar-visitante { width: 36px; height: 36px; }
+.punto-auditoria { flex: none; width: 10px; height: 10px; margin: -14px 0 0 -10px; border-radius: 50%; background: var(--hx-amarillo); box-shadow: 0 0 0 2px var(--hx-navy); }
+.empresa-fija { margin: 0; align-self: end; font-size: 0.9375rem; color: var(--hx-muted); }
+.empresa-fija strong { color: var(--hx-ink); }
+.tablero-empresa-fila { margin-top: 0.5rem; }
+.incluir-detalle { align-self: end; margin: 0 0 0.5rem; }
+.envio-detalle { margin: 0; font-size: 0.875rem; }
+.config-select { display: none; }
+@media (max-width: 860px) {
+  .config-select { display: block; margin: 0; }
+  .config-select select { font-weight: 600; }
+  .config-nav { display: none; }
+  .tablero .filtros-rapidos { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 0.25rem; }
+  .tablero .filtros-rapidos .chip-btn { flex: none; white-space: nowrap; }
+  .tablero-empresa-fila select, .tablero-empresa-fila label { width: 100%; }
+  .envio-manual-campos { flex-direction: column; align-items: stretch; }
+  .envio-manual-campos > * { width: 100%; flex: none; }
+}
+@media (max-width: 860px) {
+  .envio-manual-campos > *, .envio-manual-campos select, .envio-manual-campos input, .envio-manual-campos .btn { flex: 0 0 auto !important; }
+  .envio-manual-campos .envio-detalle { justify-content: flex-start; }
+}

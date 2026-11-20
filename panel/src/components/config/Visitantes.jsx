@@ -76,7 +76,8 @@ export default function Visitantes({ empresas = [] }) {
               const [etiqueta, clase] = ESTADOS[p.estado_bloqueo] ?? ESTADOS.ninguno;
               return (
                 <tr key={p.id}>
-                  <td><strong>{`${p.nombre ?? ''} ${p.apellidos ?? ''}`.trim() || 'Sin nombre'}</strong><br /><span className="muted small">{p.correo}</span></td>
+                  <td><div className="persona"><span className="avatar avatar-vacio avatar-visitante" aria-hidden="true">{(`${p.nombre ?? ''} ${p.apellidos ?? ''}`.trim() || p.correo).split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase()}</span>
+                    <span><strong>{`${p.nombre ?? ''} ${p.apellidos ?? ''}`.trim() || 'Sin nombre'}</strong><br /><span className="muted small">{p.correo}</span></span></div></td>
                   <td>{p.empresa}</td>
                   <td>{p.recurrente ? <span className="pill">Recurrente</span> : <span className="muted small">No recurrente</span>}</td>
                   <td><span className={`pill ${clase}`} title={p.bloqueo_motivo ?? ''}>{etiqueta}</span></td>

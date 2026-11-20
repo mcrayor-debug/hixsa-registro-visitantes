@@ -6,20 +6,22 @@ import { puedeExportar } from '../lib/permisos.js';
 import * as E from '../../../supabase/functions/_shared/estadisticas.js';
 import EnviarReporte from './EnviarReporte.jsx';
 import Dona from './Dona.jsx';
+import { estadoVisita } from '../lib/formato.js';
+import { usePaginacion } from '../lib/paginacion.jsx';
 import { useToast } from './ui.jsx';
 
 const AZUL = '#0047BA', CIAN = '#00A9E0', NARANJA = '#F38A00';
-const mesActual = () => E.hoyCDMX().slice(0, 7);
 
 export default function Reportes({ config, perfil, empresas = [] }) {
   const [tipo, setTipo] = useState('semanal');
   const [semana, setSemana] = useState(() => E.semanaDe(E.hoyCDMX()).desde);
-  const [mes, setMes] = useState(mesActual);
+  const [fechaMes, setFechaMes] = useState(() => E.hoyCDMX());
+  const [detalle, setDetalle] = useState(false);
   const [empresa, setEmpresa] = useState('');
   const [visitas, setVisitas] = useState(null);
   const [historial, setHistorial] = useState(new Set());
   const [correo, setCorreo] = useState(false);
-  const [envio, setEnvio] = useState(() => ({ tipo: 'diario', fecha: E.diaHabilAnterior(E.hoyCDMX()), enviando: false }));
+  const [envio, setEnvio] = useState(() => ({ tipo: 'diario', fecha: E.diaHabilAnterior(E.hoyCDMX()), enviando: false, detalle: false }));
   const [festivos, setFestivos] = useState(new Set());
   useEffect(() => {
     supabase.from('dias_festivos').select('fecha').eq('tipo', 'inhabil').then(({ data }) => {
@@ -30,7 +32,8 @@ export default function Reportes({ config, perfil, empresas = [] }) {
   const exporta = puedeExportar(perfil);
   const toast = useToast();
   // Semanal: lunes a viernes (igual que el reporte por correo)
-  const rango = tipo === 'semanal' ? E.semanaLaboralDe(semana) : E.mesDe(mes);
+  const rango = tipo === 'semanal' ? E.semanaLaboralDe(semana) : E.mesDe(fechaMes.slice(0, 7));
+  const auditoria = Boolean(config?.modo_auditoria);
   const tolerancia = config?.tolerancia_min ?? 15;
 
   useEffect(() => {
@@ -48,7 +51,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
       if (vivo) { setHistorial(h); setVisitas(vs); }
     })();
     return () => { vivo = false; };
-  }, [tipo, semana, mes, empresa]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tipo, semana, fechaMes, empresa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const d = useMemo(() => {
     if (!visitas) return null;
@@ -61,7 +64,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
   }, [visitas, historial, tolerancia]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const titulo = `Reporte ${tipo} de visitas`;
-  const nombre = `reporte_${tipo}_${rango.desde}_${rango.hasta}`;
+  const nombre = `reporte_${tipo}${detalle ? '_detalle' : ''}_${rango.desde}_${rango.hasta}`;
   async function pdf() {
     const { crearPdf } = await import('../lib/pdf.js');
     const { r, nr } = d;
@@ -79,6 +82,13 @@ export default function Reportes({ config, perfil, empresas = [] }) {
       { titulo: 'Ocupación por franja horaria (visitantes presentes en promedio por día hábil)', barras: d.ocupacion.map((x) => ({ etiqueta: x.franja, valor: x.promedio })) },
       { titulo: 'Visitas por anfitrión y área', columnas: ['Anfitrión', 'Área', 'Visitas'], filas: d.anfitriones.map((x) => [x.anfitrion, x.area, x.visitas]) },
     ];
+    if (detalle) {
+      secciones.push({ titulo: `Detalle de visitantes (${visitas.length})`,
+        columnas: ['Folio', 'Visitante', 'Empresa de origen', ...(auditoria ? [] : ['Empresa a visitar']), 'Visita a', 'Entrada', 'Llegada', 'Salida', 'Estado'],
+        filas: visitas.map((v) => [v.folio, v.nombre_completo, v.empresa, ...(auditoria ? [] : [v.empresas?.nombre ?? '']), v.persona_visita,
+          fmtFechaHora.format(new Date(v.entrada)), v.llegada_at ? fmtFechaHora.format(new Date(v.llegada_at)) : '—',
+          v.salida_real_at ? fmtFechaHora.format(new Date(v.salida_real_at)) : '—', estadoVisita(v).texto]) });
+    }
     const doc = await crearPdf({
       titulo, subtitulo: `${rango.desde} a ${rango.hasta}${empresa ? ` · ${empresas.find((e) => e.id === empresa)?.nombre}` : ''}. Generado por ${perfil.nombre}.`,
       kpis: [['visitas en el periodo', r.total], ['visitantes distintos', r.unicos], ['acceso en horario', r.puntualidad === null ? '—' : `${r.puntualidad} %`], ['vencidas sin uso', r.sinUso]],
@@ -97,9 +107,10 @@ export default function Reportes({ config, perfil, empresas = [] }) {
             <select aria-label="Tipo de reporte" value={envio.tipo} onChange={(e) => setEnvio({ ...envio, tipo: e.target.value })}>
               <option value="diario">Diario</option><option value="semanal">Semanal</option></select>
             <input type="date" aria-label={envio.tipo === 'diario' ? 'Día del reporte' : 'Semana que contiene'} value={envio.fecha} max={E.hoyCDMX()} onChange={(e) => setEnvio({ ...envio, fecha: e.target.value })} />
+            <label className="check envio-detalle"><input type="checkbox" checked={envio.detalle} onChange={(e) => setEnvio({ ...envio, detalle: e.target.checked })} /><span>Con detalle de visitantes</span></label>
             <button type="button" className="btn btn-compact" disabled={envio.enviando} aria-busy={envio.enviando} onClick={async () => {
               setEnvio({ ...envio, enviando: true });
-              try { const r = await invocar('reporte-programado', { tipo: envio.tipo, fecha: envio.fecha }); toast(`Reporte ${r.tipo} enviado (${r.total} visitas, ${r.desde}${r.hasta !== r.desde ? ` a ${r.hasta}` : ''}).`); }
+              try { const r = await invocar('reporte-programado', { tipo: envio.tipo, fecha: envio.fecha, detalle: envio.detalle }); toast(`Reporte ${r.tipo} enviado (${r.total} visitas, ${r.desde}${r.hasta !== r.desde ? ` a ${r.hasta}` : ''}).`); }
               catch (e) { toast(e.message); } finally { setEnvio((x) => ({ ...x, enviando: false })); }
             }}>{envio.enviando ? 'Enviando…' : 'Enviar ahora'}</button>
           </div>
@@ -114,12 +125,15 @@ export default function Reportes({ config, perfil, empresas = [] }) {
         <div className="filtros-grid">
           {tipo === 'semanal'
             ? <div className="field"><label htmlFor="rp-semana">Semana (lunes a viernes) que contiene</label><input id="rp-semana" type="date" value={semana} onChange={(e) => e.target.value && setSemana(e.target.value)} /></div>
-            : <div className="field"><label htmlFor="rp-mes">Mes</label><input id="rp-mes" type="month" value={mes} onChange={(e) => e.target.value && setMes(e.target.value)} /></div>}
+            : <div className="field"><label htmlFor="rp-mes">Mes que contiene</label><input id="rp-mes" type="date" value={fechaMes} onChange={(e) => e.target.value && setFechaMes(e.target.value)} /></div>}
+          {config?.modo_auditoria ? <p className="empresa-fija field">Empresa a visitar: <strong>{empresas[0]?.nombre ?? 'HIXSA'}</strong></p> : (
           <div className="field"><label htmlFor="rp-emp">Empresa a visitar</label>
             <select id="rp-emp" value={empresa} onChange={(e) => setEmpresa(e.target.value)}>
               {!config?.modo_auditoria && <option value="">Todas</option>}
               {empresas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select></div>
+          )}
+          <label className="check incluir-detalle"><input type="checkbox" checked={detalle} onChange={(e) => setDetalle(e.target.checked)} /><span>Incluir detalle de visitantes</span></label>
           <p className="muted small reportes-periodo">Periodo: <strong>{rango.desde}</strong> a <strong>{rango.hasta}</strong></p>
         </div>
       </div>
@@ -179,6 +193,7 @@ export default function Reportes({ config, perfil, empresas = [] }) {
                   <tbody>{d.anfitriones.slice(0, 15).map((x) => <tr key={`${x.anfitrion}${x.area}`}><td>{x.anfitrion}</td><td>{x.area || '—'}</td><td><strong>{x.visitas}</strong></td></tr>)}</tbody></table></div></section>
             </div>
           )}
+          {detalle && <DetalleVisitantes visitas={visitas} auditoria={auditoria} />}
           <EnviarReporte abierto={correo} onCerrar={() => setCorreo(false)} filtros={{ ...rango, empresa_visita_id: empresa || undefined }} n={visitas.length}
             titulo={titulo} destinatarios={config?.destinatarios_reporte ?? []} crearPdf={pdf} />
         </>
@@ -189,4 +204,33 @@ export default function Reportes({ config, perfil, empresas = [] }) {
 
 function Grafica({ titulo, children }) {
   return <section className="card grafica"><h2>{titulo}</h2><div className="grafica-cuerpo"><ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer></div></section>;
+}
+
+/** Detalle de visitantes del periodo (mismas columnas que Consultas), paginado. */
+function DetalleVisitantes({ visitas, auditoria }) {
+  const pag = usePaginacion([...visitas].sort((a, b) => b.entrada.localeCompare(a.entrada)), 25);
+  return (
+    <section className="card" aria-labelledby="detalle-titulo">
+      <h2 id="detalle-titulo">Detalle de visitantes ({visitas.length})</h2>
+      <div className="table-wrap">
+        <table className="tabla">
+          <thead><tr><th>Folio</th><th>Visitante</th>{!auditoria && <th>Empresa a visitar</th>}<th>Visita a</th><th>Entrada</th><th>Llegada</th><th>Salida</th><th>Estado</th></tr></thead>
+          <tbody>{pag.visibles.map((v) => (
+            <tr key={v.folio}>
+              <td className="mono">{v.folio}</td>
+              <td><strong>{v.nombre_completo}</strong><br /><span className="muted small">{v.empresa}</span></td>
+              {!auditoria && <td>{v.empresas?.nombre ?? '—'}</td>}
+              <td>{v.persona_visita}</td>
+              <td className="nowrap">{fmtFechaHora.format(new Date(v.entrada))}</td>
+              <td className="nowrap">{v.llegada_at ? fmtFechaHora.format(new Date(v.llegada_at)) : '—'}</td>
+              <td className="nowrap">{v.salida_real_at ? fmtFechaHora.format(new Date(v.salida_real_at)) : '—'}</td>
+              <td>{estadoVisita(v).texto}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+        {!visitas.length && <p className="vacio">Sin visitas en el periodo.</p>}
+      </div>
+      {pag.controles}
+    </section>
+  );
 }

@@ -119,11 +119,7 @@ export default function App() {
               : <img src={LOGO_BLANCO} alt="HIXSA" />}
           </a>
           <span className="topbar-title">Panel de visitas</span>
-          {config?.modo_auditoria && (
-            <span className="badge-auditoria" title="Solo se muestra la información de la empresa principal">
-              Modo auditoría: {principal?.nombre ?? 'HIXSA'}
-            </span>
-          )}
+          {config?.modo_auditoria && <span className="punto-auditoria" role="img" aria-label="Modo auditoría activo" />}
         </div>
         {perfil && <span className="topbar-seccion">{actual?.texto}</span>}
         {perfil && (
